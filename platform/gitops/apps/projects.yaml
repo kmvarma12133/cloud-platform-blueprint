@@ -23,7 +23,7 @@ spec:
     - https://kedacore.github.io/charts
     - https://charts.external-secrets.io
     - https://charts.jetstack.io
-    - https://kubecost.github.io/cost-analyzer
+    - https://kubecost.github.io/kubecost
     - oci://docker.io/envoyproxy/gateway-helm
     - oci://public.ecr.aws/karpenter/karpenter
   destinations:

@@ -50,7 +50,7 @@ patches:
       name: kubecost
     patch: |-
       - op: replace
-        path: /spec/source/helm/valuesObject/kubecostProductConfigs/clusterName
+        path: /spec/source/helm/valuesObject/global/clusterId
         value: cpb-prod
   # Prod: nothing syncs on its own. Argo CD shows the diff and a person syncs it.
   - target:

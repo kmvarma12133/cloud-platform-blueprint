@@ -8,22 +8,18 @@ metadata:
 spec:
   project: platform
   source:
-    repoURL: https://kubecost.github.io/cost-analyzer
-    chart: cost-analyzer
-    targetRevision: 2.9.7
+    # Kubecost 3 (the cost-analyzer 2.x chart is now only an upgrade bridge).
+    # It collects allocation data with its own FinOps agent, so it no longer
+    # needs a Prometheus of its own or access to the cluster one.
+    repoURL: https://kubecost.github.io/kubecost
+    chart: kubecost
+    targetRevision: 3.3.1
     helm:
       releaseName: kubecost
       valuesObject:
-        # Reuse the cluster Prometheus rather than running a second one.
         global:
-          prometheus:
-            enabled: false
-            fqdn: http://kube-prometheus-stack-prometheus.monitoring:9090
-          grafana:
-            enabled: false
-            proxy: false
-        kubecostProductConfigs:
-          clusterName: cpb
+          # Names this cluster in cost reports. Set per cluster by ../clusters/*.
+          clusterId: cpb
   destination:
     server: https://kubernetes.default.svc
     namespace: kubecost

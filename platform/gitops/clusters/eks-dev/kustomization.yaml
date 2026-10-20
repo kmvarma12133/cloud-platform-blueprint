@@ -50,5 +50,5 @@ patches:
       name: kubecost
     patch: |-
       - op: replace
-        path: /spec/source/helm/valuesObject/kubecostProductConfigs/clusterName
+        path: /spec/source/helm/valuesObject/global/clusterId
         value: cpb-dev

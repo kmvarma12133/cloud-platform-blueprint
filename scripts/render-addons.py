@@ -38,7 +38,9 @@ CRDS_CATALOG = (
 
 def run(cmd: list[str], **kwargs) -> subprocess.CompletedProcess:
     # Commands run from the repo root so value-file paths are relative to it.
-    return subprocess.run(cmd, cwd=ROOT, capture_output=True, text=True, **kwargs)  # noqa: S603
+    return subprocess.run(  # noqa: S603
+        cmd, cwd=ROOT, capture_output=True, text=True, encoding="utf-8", **kwargs
+    )
 
 
 def applications(cluster: Path) -> list[dict]:
@@ -103,6 +105,11 @@ def main() -> int:
                         *KUBECONFORM,
                         "-strict",
                         "-summary",
+                        # CRD definitions are upstream artifacts that the API
+                        # server validates on apply; every custom resource
+                        # instance is still checked against the catalog.
+                        "-skip",
+                        "CustomResourceDefinition",
                         "-schema-location",
                         "default",
                         "-schema-location",

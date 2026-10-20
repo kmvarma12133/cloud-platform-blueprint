@@ -1,9 +1,23 @@
-data "aws_availability_zones" "available" {
+# Zones are pinned by name rather than "the first N available": if AWS adds a
+# zone, an implicit list could reorder and Terraform would rebuild subnets.
+data "aws_availability_zones" "selected" {
   state = "available"
+
+  filter {
+    name   = "zone-name"
+    values = var.azs
+  }
+
+  lifecycle {
+    postcondition {
+      condition     = length(self.names) == length(var.azs)
+      error_message = "One or more zones in var.azs are not available in this region."
+    }
+  }
 }
 
 locals {
-  azs = slice(data.aws_availability_zones.available.names, 0, var.az_count)
+  azs = sort(data.aws_availability_zones.selected.names)
 
   # Carve the VPC into /20s: public, private (nodes/pods), intra (control-plane ENIs, no internet).
   public_subnets  = [for i, _ in local.azs : cidrsubnet(var.cidr_block, 4, i)]
@@ -144,9 +158,58 @@ data "aws_region" "current" {}
 
 # --- VPC flow logs -----------------------------------------------------------
 
+data "aws_caller_identity" "current" {}
+data "aws_partition" "current" {}
+
+# CloudWatch Logs can only use a CMK whose key policy names the logs service.
+data "aws_iam_policy_document" "flow_logs_kms" {
+  #checkov:skip=CKV_AWS_109:In a key policy "*" means this key only; the account root statement is the AWS default that delegates access to IAM.
+  #checkov:skip=CKV_AWS_111:Same as above: key policies cannot name the key ARN they are attached to.
+  #checkov:skip=CKV_AWS_356:Same as above.
+  statement {
+    sid       = "AccountAdmin"
+    actions   = ["kms:*"]
+    resources = ["*"]
+    principals {
+      type        = "AWS"
+      identifiers = ["arn:${data.aws_partition.current.partition}:iam::${data.aws_caller_identity.current.account_id}:root"]
+    }
+  }
+
+  statement {
+    sid = "CloudWatchLogs"
+    actions = [
+      "kms:Encrypt*",
+      "kms:Decrypt*",
+      "kms:ReEncrypt*",
+      "kms:GenerateDataKey*",
+      "kms:Describe*",
+    ]
+    resources = ["*"]
+    principals {
+      type        = "Service"
+      identifiers = ["logs.${data.aws_region.current.name}.amazonaws.com"]
+    }
+    condition {
+      test     = "ArnLike"
+      variable = "kms:EncryptionContext:aws:logs:arn"
+      values   = ["arn:${data.aws_partition.current.partition}:logs:${data.aws_region.current.name}:${data.aws_caller_identity.current.account_id}:log-group:/vpc/${var.name}/*"]
+    }
+  }
+}
+
+resource "aws_kms_key" "flow_logs" {
+  description             = "${var.name} VPC flow logs"
+  deletion_window_in_days = 14
+  enable_key_rotation     = true
+  policy                  = data.aws_iam_policy_document.flow_logs_kms.json
+  tags                    = var.tags
+}
+
 resource "aws_cloudwatch_log_group" "flow_logs" {
   name              = "/vpc/${var.name}/flow-logs"
   retention_in_days = var.flow_log_retention_days
+  kms_key_id        = aws_kms_key.flow_logs.arn
   tags              = var.tags
 }
 

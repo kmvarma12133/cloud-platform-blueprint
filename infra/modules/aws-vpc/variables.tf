@@ -14,14 +14,13 @@ variable "cidr_block" {
   }
 }
 
-variable "az_count" {
-  description = "Number of availability zones to spread subnets across."
-  type        = number
-  default     = 3
+variable "azs" {
+  description = "Availability zone names to spread subnets across, e.g. [\"eu-west-1a\", \"eu-west-1b\", \"eu-west-1c\"]."
+  type        = list(string)
 
   validation {
-    condition     = var.az_count >= 2 && var.az_count <= 4
-    error_message = "az_count must be between 2 and 4."
+    condition     = length(var.azs) >= 2 && length(var.azs) <= 4
+    error_message = "azs must list between 2 and 4 zones."
   }
 }
 
@@ -37,9 +36,9 @@ variable "cluster_name" {
 }
 
 variable "flow_log_retention_days" {
-  description = "CloudWatch retention for VPC flow logs."
+  description = "CloudWatch retention for VPC flow logs. Defaults to a year for audit; dev overrides it lower to save cost."
   type        = number
-  default     = 30
+  default     = 365
 }
 
 variable "tags" {

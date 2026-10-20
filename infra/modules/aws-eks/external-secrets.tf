@@ -1,6 +1,7 @@
 # Identity for the External Secrets Operator, which Argo CD installs into the
-# external-secrets namespace. It may read only secrets under cpb/<cluster>/,
-# so a compromised operator in dev cannot read prod's secrets.
+# external-secrets namespace. It may read only secrets under the cpb/ prefix,
+# not everything else in the account. Dev and prod are separate AWS accounts,
+# so neither can read the other's secrets regardless.
 
 resource "aws_iam_role" "external_secrets" {
   name               = "${var.cluster_name}-external-secrets"
@@ -14,7 +15,7 @@ data "aws_iam_policy_document" "external_secrets" {
       "secretsmanager:GetSecretValue",
       "secretsmanager:DescribeSecret",
     ]
-    resources = ["arn:${local.partition}:secretsmanager:${data.aws_region.current.name}:${data.aws_caller_identity.current.account_id}:secret:cpb/${var.cluster_name}/*"]
+    resources = ["arn:${local.partition}:secretsmanager:${data.aws_region.current.name}:${data.aws_caller_identity.current.account_id}:secret:cpb/*"]
   }
 }
 

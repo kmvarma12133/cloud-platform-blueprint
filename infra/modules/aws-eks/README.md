@@ -29,7 +29,7 @@ What's in it:
     state-change and health events.
 
 - **External Secrets (`external-secrets.tf`).** A Pod Identity role that can
-  read only Secrets Manager entries under `cpb/<cluster>/`.
+  read only Secrets Manager entries under `cpb/`.
 
 See [ADR 0005](../../../docs/adr/0005-eks-pod-identity-vs-irsa.md) for when
 this repo uses Pod Identity and when it uses IRSA.

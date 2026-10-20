@@ -1,0 +1,28 @@
+# Grafana Tempo in single-binary mode: enough for this reference platform.
+# At scale, switch to tempo-distributed with object storage (S3 / Azure Blob).
+tempo:
+  # Traces are for debugging recent requests; metrics and logs cover history.
+  retention: 72h
+  reportingEnabled: false
+  # Only OTLP: the collector is the single entry point for telemetry.
+  receivers:
+    otlp:
+      protocols:
+        grpc:
+          endpoint: "0.0.0.0:4317"
+        http:
+          endpoint: "0.0.0.0:4318"
+  resources:
+    requests:
+      cpu: 100m
+      memory: 256Mi
+    limits:
+      cpu: "1"
+      memory: 1Gi
+
+persistence:
+  enabled: true
+  size: 10Gi
+
+serviceMonitor:
+  enabled: true

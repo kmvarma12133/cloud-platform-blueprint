@@ -1,0 +1,92 @@
+# OpenTelemetry Collector (gateway deployment) for the opentelemetry-collector chart.
+#
+#   OTLP (gRPC 4317 / HTTP 4318)
+#     -> memory_limiter -> k8s_attributes -> batch
+#     -> traces:  Tempo (OTLP gRPC)
+#     -> metrics: Prometheus (scraped from the collector's exporter on :8889)
+#
+# Apps only need OTEL_EXPORTER_OTLP_ENDPOINT=http://otel-collector.observability:4318.
+mode: deployment
+fullnameOverride: otel-collector
+
+image:
+  # contrib includes the k8s_attributes processor and the prometheus exporter.
+  repository: otel/opentelemetry-collector-contrib
+command:
+  name: otelcol-contrib
+
+# Adds the k8s_attributes processor and the RBAC it needs, so every span and
+# metric carries k8s.namespace.name, k8s.pod.name, k8s.deployment.name, etc.
+presets:
+  kubernetesAttributes:
+    enabled: true
+
+config:
+  receivers:
+    # Only OTLP; the chart's default Jaeger, Zipkin and self-scrape receivers are removed.
+    jaeger: null
+    zipkin: null
+    prometheus: null
+  exporters:
+    # Component names follow the collector's current naming (otlp_grpc,
+    # k8s_attributes); the chart would otherwise rewrite the deprecated ones.
+    debug: null
+    otlp_grpc/tempo:
+      endpoint: tempo.observability:4317
+      tls:
+        # In-cluster traffic; add mTLS with a service mesh (see README).
+        insecure: true
+    prometheus:
+      endpoint: ${env:MY_POD_IP}:8889
+      # Promote resource attributes (namespace, pod, service) to metric labels.
+      resource_to_telemetry_conversion:
+        enabled: true
+  processors:
+    batch:
+      send_batch_size: 8192
+      timeout: 5s
+  service:
+    pipelines:
+      traces:
+        receivers: [otlp]
+        processors: [memory_limiter, k8s_attributes, batch]
+        exporters: [otlp_grpc/tempo]
+      metrics:
+        receivers: [otlp]
+        processors: [memory_limiter, k8s_attributes, batch]
+        exporters: [prometheus]
+      logs: null
+
+ports:
+  jaeger-compact:
+    enabled: false
+  jaeger-thrift:
+    enabled: false
+  jaeger-grpc:
+    enabled: false
+  zipkin:
+    enabled: false
+  # Metrics received over OTLP, re-exposed for Prometheus to scrape.
+  prom-exporter:
+    enabled: true
+    containerPort: 8889
+    servicePort: 8889
+    protocol: TCP
+  # The collector's own health metrics.
+  metrics:
+    enabled: true
+
+serviceMonitor:
+  enabled: true
+  metricsEndpoints:
+    - port: prom-exporter
+    - port: metrics
+
+resources:
+  requests:
+    cpu: 100m
+    memory: 128Mi
+  limits:
+    cpu: 500m
+    # memory_limiter is set to 80% of this, so the collector sheds load before OOM.
+    memory: 512Mi

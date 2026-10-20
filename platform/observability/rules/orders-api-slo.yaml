@@ -1,0 +1,165 @@
+# SLOs for orders-api, per environment (namespace), over a rolling 30 days.
+#
+#   Availability: 99.9% of non-probe requests do not return 5xx.  Budget 0.1%.
+#   Latency:      99%   of non-probe requests complete in <= 300ms. Budget 1%.
+#
+# Alerts use the multi-window, multi-burn-rate method from the Google SRE
+# workbook (chapter 5). A burn rate of 1 spends exactly the budget in 30 days.
+#
+#   Severity  Burn rate  Long window  Short window  Budget spent when it fires
+#   page      14.4x      1h           5m            2% in an hour
+#   ticket    6x         6h           30m           5% in six hours
+#
+# The long window gives significance and the short window makes the alert
+# reset quickly once the problem is fixed. The workbook pages on both
+# conditions; here the 6x burn opens a ticket, because a single-service team
+# can absorb a slow burn during working hours.
+#
+# Probe routes are excluded so constant health checks cannot inflate the SLI.
+apiVersion: monitoring.coreos.com/v1
+kind: PrometheusRule
+metadata:
+  name: orders-api-slo
+  namespace: monitoring
+  labels:
+    app.kubernetes.io/name: orders-api
+    owner: team-orders
+spec:
+  groups:
+    - name: orders-api-slo-availability.rules
+      interval: 30s
+      rules:
+        - record: orders_api:sli_errors:ratio_rate5m
+          expr: |
+            sum by (namespace) (rate(http_requests_total{service="orders-api", route!~"/healthz|/readyz", status=~"5.."}[5m]))
+            /
+            sum by (namespace) (rate(http_requests_total{service="orders-api", route!~"/healthz|/readyz"}[5m]))
+        - record: orders_api:sli_errors:ratio_rate30m
+          expr: |
+            sum by (namespace) (rate(http_requests_total{service="orders-api", route!~"/healthz|/readyz", status=~"5.."}[30m]))
+            /
+            sum by (namespace) (rate(http_requests_total{service="orders-api", route!~"/healthz|/readyz"}[30m]))
+        - record: orders_api:sli_errors:ratio_rate1h
+          expr: |
+            sum by (namespace) (rate(http_requests_total{service="orders-api", route!~"/healthz|/readyz", status=~"5.."}[1h]))
+            /
+            sum by (namespace) (rate(http_requests_total{service="orders-api", route!~"/healthz|/readyz"}[1h]))
+        - record: orders_api:sli_errors:ratio_rate6h
+          expr: |
+            sum by (namespace) (rate(http_requests_total{service="orders-api", route!~"/healthz|/readyz", status=~"5.."}[6h]))
+            /
+            sum by (namespace) (rate(http_requests_total{service="orders-api", route!~"/healthz|/readyz"}[6h]))
+        - record: orders_api:sli_errors:ratio_rate30d
+          expr: |
+            sum by (namespace) (increase(http_requests_total{service="orders-api", route!~"/healthz|/readyz", status=~"5.."}[30d]))
+            /
+            sum by (namespace) (increase(http_requests_total{service="orders-api", route!~"/healthz|/readyz"}[30d]))
+
+        # Burn rate = observed error ratio / budget (1 - 0.999).
+        - record: orders_api:availability_burn_rate:1h
+          expr: orders_api:sli_errors:ratio_rate1h / 0.001
+        - record: orders_api:availability_burn_rate:6h
+          expr: orders_api:sli_errors:ratio_rate6h / 0.001
+        # 1 = untouched budget, 0 = spent, negative = SLO breached.
+        - record: orders_api:availability_budget_remaining:ratio30d
+          expr: 1 - (orders_api:sli_errors:ratio_rate30d / 0.001)
+
+    - name: orders-api-slo-latency.rules
+      interval: 30s
+      rules:
+        # Share of requests slower than 300ms (le="0.3" is a real bucket in the app).
+        - record: orders_api:sli_slow:ratio_rate5m
+          expr: |
+            1 - (
+              sum by (namespace) (rate(http_request_duration_seconds_bucket{service="orders-api", route!~"/healthz|/readyz", le="0.3"}[5m]))
+              /
+              sum by (namespace) (rate(http_request_duration_seconds_count{service="orders-api", route!~"/healthz|/readyz"}[5m]))
+            )
+        - record: orders_api:sli_slow:ratio_rate30m
+          expr: |
+            1 - (
+              sum by (namespace) (rate(http_request_duration_seconds_bucket{service="orders-api", route!~"/healthz|/readyz", le="0.3"}[30m]))
+              /
+              sum by (namespace) (rate(http_request_duration_seconds_count{service="orders-api", route!~"/healthz|/readyz"}[30m]))
+            )
+        - record: orders_api:sli_slow:ratio_rate1h
+          expr: |
+            1 - (
+              sum by (namespace) (rate(http_request_duration_seconds_bucket{service="orders-api", route!~"/healthz|/readyz", le="0.3"}[1h]))
+              /
+              sum by (namespace) (rate(http_request_duration_seconds_count{service="orders-api", route!~"/healthz|/readyz"}[1h]))
+            )
+        - record: orders_api:sli_slow:ratio_rate6h
+          expr: |
+            1 - (
+              sum by (namespace) (rate(http_request_duration_seconds_bucket{service="orders-api", route!~"/healthz|/readyz", le="0.3"}[6h]))
+              /
+              sum by (namespace) (rate(http_request_duration_seconds_count{service="orders-api", route!~"/healthz|/readyz"}[6h]))
+            )
+        - record: orders_api:latency_p95:seconds_5m
+          expr: |
+            histogram_quantile(0.95,
+              sum by (namespace, le) (rate(http_request_duration_seconds_bucket{service="orders-api", route!~"/healthz|/readyz"}[5m])))
+
+    - name: orders-api-slo.alerts
+      rules:
+        - alert: OrdersApiErrorBudgetBurnFast
+          expr: |
+            orders_api:sli_errors:ratio_rate1h > (14.4 * 0.001)
+            and
+            orders_api:sli_errors:ratio_rate5m > (14.4 * 0.001)
+          for: 2m
+          labels:
+            severity: page
+            slo: availability
+            service: orders-api
+          annotations:
+            summary: "orders-api ({{ $labels.namespace }}) is burning its availability budget at more than 14.4x"
+            description: "Error ratio over 1h is {{ $value | humanizePercentage }}. At this rate the 30-day budget is gone in about two days."
+            runbook_url: https://github.com/OWNER/cloud-platform-blueprint/blob/main/docs/runbooks/high-error-rate.md
+            dashboard: /d/orders-api-slo/orders-api-slo?var-namespace={{ $labels.namespace }}
+        - alert: OrdersApiErrorBudgetBurnSlow
+          expr: |
+            orders_api:sli_errors:ratio_rate6h > (6 * 0.001)
+            and
+            orders_api:sli_errors:ratio_rate30m > (6 * 0.001)
+          for: 15m
+          labels:
+            severity: ticket
+            slo: availability
+            service: orders-api
+          annotations:
+            summary: "orders-api ({{ $labels.namespace }}) is burning its availability budget at more than 6x"
+            description: "Error ratio over 6h is {{ $value | humanizePercentage }}. At this rate the 30-day budget is gone in about five days."
+            runbook_url: https://github.com/OWNER/cloud-platform-blueprint/blob/main/docs/runbooks/high-error-rate.md
+            dashboard: /d/orders-api-slo/orders-api-slo?var-namespace={{ $labels.namespace }}
+        - alert: OrdersApiLatencyBudgetBurnFast
+          expr: |
+            orders_api:sli_slow:ratio_rate1h > (14.4 * 0.01)
+            and
+            orders_api:sli_slow:ratio_rate5m > (14.4 * 0.01)
+          for: 2m
+          labels:
+            severity: page
+            slo: latency
+            service: orders-api
+          annotations:
+            summary: "orders-api ({{ $labels.namespace }}) latency SLO burning at more than 14.4x"
+            description: "{{ $value | humanizePercentage }} of requests took longer than 300ms over the last hour (budget: 1%)."
+            runbook_url: https://github.com/OWNER/cloud-platform-blueprint/blob/main/docs/runbooks/high-error-rate.md
+            dashboard: /d/orders-api-slo/orders-api-slo?var-namespace={{ $labels.namespace }}
+        - alert: OrdersApiLatencyBudgetBurnSlow
+          expr: |
+            orders_api:sli_slow:ratio_rate6h > (6 * 0.01)
+            and
+            orders_api:sli_slow:ratio_rate30m > (6 * 0.01)
+          for: 15m
+          labels:
+            severity: ticket
+            slo: latency
+            service: orders-api
+          annotations:
+            summary: "orders-api ({{ $labels.namespace }}) latency SLO burning at more than 6x"
+            description: "{{ $value | humanizePercentage }} of requests took longer than 300ms over the last 6 hours (budget: 1%)."
+            runbook_url: https://github.com/OWNER/cloud-platform-blueprint/blob/main/docs/runbooks/high-error-rate.md
+            dashboard: /d/orders-api-slo/orders-api-slo?var-namespace={{ $labels.namespace }}

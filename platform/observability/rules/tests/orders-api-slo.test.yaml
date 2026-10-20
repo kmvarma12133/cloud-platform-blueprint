@@ -1,0 +1,120 @@
+# promtool unit tests for orders-api-slo.yaml. Run with: make k8s-validate
+# (scripts/check-prometheus-rules.sh extracts the rule groups from the
+# PrometheusRule manifest first, because promtool reads plain rule files).
+rule_files:
+  - orders-api-slo.rules.yaml
+
+evaluation_interval: 30s
+
+tests:
+  # 2% errors = 20x burn: the fast-burn page must fire, and the probe series
+  # (which never fail) must not dilute the ratio.
+  - interval: 1m
+    input_series:
+      - series: 'http_requests_total{namespace="orders-dev", service="orders-api", route="/orders", status="201"}'
+        values: '0+980x90'
+      - series: 'http_requests_total{namespace="orders-dev", service="orders-api", route="/orders", status="500"}'
+        values: '0+20x90'
+      - series: 'http_requests_total{namespace="orders-dev", service="orders-api", route="/healthz", status="200"}'
+        values: '0+100000x90'
+    promql_expr_test:
+      - expr: round(orders_api:availability_burn_rate:1h, 0.01)
+        eval_time: 70m
+        exp_samples:
+          - labels: '{namespace="orders-dev"}'
+            value: 20
+    alert_rule_test:
+      - eval_time: 70m
+        alertname: OrdersApiErrorBudgetBurnFast
+        exp_alerts:
+          - exp_labels:
+              severity: page
+              slo: availability
+              service: orders-api
+              namespace: orders-dev
+            exp_annotations:
+              summary: "orders-api (orders-dev) is burning its availability budget at more than 14.4x"
+              description: "Error ratio over 1h is 2%. At this rate the 30-day budget is gone in about two days."
+              runbook_url: https://github.com/OWNER/cloud-platform-blueprint/blob/main/docs/runbooks/high-error-rate.md
+              dashboard: /d/orders-api-slo/orders-api-slo?var-namespace=orders-dev
+      # A fast burn is also a slow burn: with only 70m of data the 6h window is
+      # computed over what exists, so the ticket fires too. Alertmanager's
+      # inhibit rule (page suppresses ticket for the same SLO) keeps this to a
+      # single notification.
+      - eval_time: 70m
+        alertname: OrdersApiErrorBudgetBurnSlow
+        exp_alerts:
+          - exp_labels:
+              severity: ticket
+              slo: availability
+              service: orders-api
+              namespace: orders-dev
+            exp_annotations:
+              summary: "orders-api (orders-dev) is burning its availability budget at more than 6x"
+              description: "Error ratio over 6h is 2%. At this rate the 30-day budget is gone in about five days."
+              runbook_url: https://github.com/OWNER/cloud-platform-blueprint/blob/main/docs/runbooks/high-error-rate.md
+              dashboard: /d/orders-api-slo/orders-api-slo?var-namespace=orders-dev
+
+  # 0.05% errors = 0.5x burn: well inside budget, nothing fires.
+  - interval: 1m
+    input_series:
+      - series: 'http_requests_total{namespace="orders-prod", service="orders-api", route="/orders", status="201"}'
+        values: '0+1999x90'
+      - series: 'http_requests_total{namespace="orders-prod", service="orders-api", route="/orders", status="500"}'
+        values: '0+1x90'
+    alert_rule_test:
+      - eval_time: 70m
+        alertname: OrdersApiErrorBudgetBurnFast
+        exp_alerts: []
+      - eval_time: 70m
+        alertname: OrdersApiErrorBudgetBurnSlow
+        exp_alerts: []
+
+  # 0.8% errors = 8x burn for 7h: opens a ticket, does not page.
+  - interval: 1m
+    input_series:
+      - series: 'http_requests_total{namespace="orders-prod", service="orders-api", route="/orders", status="201"}'
+        values: '0+992x420'
+      - series: 'http_requests_total{namespace="orders-prod", service="orders-api", route="/orders", status="500"}'
+        values: '0+8x420'
+    alert_rule_test:
+      - eval_time: 7h
+        alertname: OrdersApiErrorBudgetBurnSlow
+        exp_alerts:
+          - exp_labels:
+              severity: ticket
+              slo: availability
+              service: orders-api
+              namespace: orders-prod
+            exp_annotations:
+              summary: "orders-api (orders-prod) is burning its availability budget at more than 6x"
+              description: "Error ratio over 6h is 0.8%. At this rate the 30-day budget is gone in about five days."
+              runbook_url: https://github.com/OWNER/cloud-platform-blueprint/blob/main/docs/runbooks/high-error-rate.md
+              dashboard: /d/orders-api-slo/orders-api-slo?var-namespace=orders-prod
+      - eval_time: 7h
+        alertname: OrdersApiErrorBudgetBurnFast
+        exp_alerts: []
+
+  # 20% of requests slower than 300ms = 20x the 1% latency budget: pages.
+  - interval: 1m
+    input_series:
+      - series: 'http_request_duration_seconds_bucket{namespace="orders-dev", service="orders-api", route="/orders", le="0.3"}'
+        values: '0+800x90'
+      - series: 'http_request_duration_seconds_bucket{namespace="orders-dev", service="orders-api", route="/orders", le="+Inf"}'
+        values: '0+1000x90'
+      - series: 'http_request_duration_seconds_count{namespace="orders-dev", service="orders-api", route="/orders"}'
+        values: '0+1000x90'
+    alert_rule_test:
+      - eval_time: 70m
+        alertname: OrdersApiLatencyBudgetBurnFast
+        exp_alerts:
+          - exp_labels:
+              severity: page
+              slo: latency
+              service: orders-api
+              namespace: orders-dev
+            exp_annotations:
+              summary: "orders-api (orders-dev) latency SLO burning at more than 14.4x"
+              description: "20% of requests took longer than 300ms over the last hour (budget: 1%)."
+              runbook_url: https://github.com/OWNER/cloud-platform-blueprint/blob/main/docs/runbooks/high-error-rate.md
+              dashboard: /d/orders-api-slo/orders-api-slo?var-namespace=orders-dev

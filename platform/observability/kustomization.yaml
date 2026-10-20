@@ -1,0 +1,17 @@
+# Synced by the platform-observability Argo CD Application into "monitoring",
+# where kube-prometheus-stack picks up PrometheusRules and the Grafana sidecar
+# picks up any ConfigMap labelled grafana_dashboard: "1".
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+namespace: monitoring
+resources:
+  - rules/orders-api-slo.yaml
+configMapGenerator:
+  - name: grafana-dashboard-orders-api
+    files:
+      - dashboards/orders-api-slo.json
+    options:
+      # A stable name keeps the sidecar from loading the dashboard twice during a rollout.
+      disableNameSuffixHash: true
+      labels:
+        grafana_dashboard: "1"

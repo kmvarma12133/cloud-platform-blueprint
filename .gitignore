@@ -24,3 +24,6 @@ __pycache__/
 *.key
 .env
 kubeconfig*
+
+# Local tool scratch space
+.cache/

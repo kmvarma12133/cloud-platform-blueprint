@@ -1,0 +1,149 @@
+name: k8s
+
+# Everything under platform/: chart and manifest schemas, upstream add-on
+# charts rendered with our values, Rego unit tests, Gatekeeper template drift,
+# Prometheus rule tests and YAML lint.
+on:
+  pull_request:
+    paths:
+      - platform/**
+      - scripts/validate-k8s.sh
+      - scripts/render-addons.py
+      - scripts/build-gatekeeper.py
+      - scripts/check-prometheus-rules.sh
+      - scripts/requirements.txt
+      - .yamllint.yaml
+      - .github/workflows/k8s.yml
+  push:
+    branches: [main]
+    paths:
+      - platform/**
+      - scripts/validate-k8s.sh
+      - scripts/render-addons.py
+      - scripts/build-gatekeeper.py
+      - scripts/check-prometheus-rules.sh
+      - scripts/requirements.txt
+      - .yamllint.yaml
+      - .github/workflows/k8s.yml
+
+permissions: {}
+
+concurrency:
+  group: k8s-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  HELM_VERSION: v4.3.1
+  KUBECONFORM_VERSION: v0.8.0
+  KUBECONFORM_SHA256: 9bc2bffbf71f261128533edaf912153948b7ff238f9a531ae6d34466ec287883
+
+jobs:
+  manifests:
+    name: helm + kustomize | kubeconform
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: azure/setup-helm@9bc31f4ebc9c6b171d7bfbaa5d006ae7abdb4310 # v5.0.1
+        with:
+          version: ${{ env.HELM_VERSION }}
+      - name: Install kubeconform
+        run: |
+          file=kubeconform-linux-amd64.tar.gz
+          curl -fsSLo "$file" "https://github.com/yannh/kubeconform/releases/download/${KUBECONFORM_VERSION}/${file}"
+          echo "${KUBECONFORM_SHA256}  ${file}" | sha256sum --check
+          tar -xzf "$file" kubeconform
+          sudo install kubeconform /usr/local/bin/kubeconform
+      # kubectl (for `kubectl kustomize`) is preinstalled on GitHub's Ubuntu runners.
+      - run: scripts/validate-k8s.sh
+
+  addons:
+    name: render add-on charts
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: azure/setup-helm@9bc31f4ebc9c6b171d7bfbaa5d006ae7abdb4310 # v5.0.1
+        with:
+          version: ${{ env.HELM_VERSION }}
+      - name: Install kubeconform
+        run: |
+          file=kubeconform-linux-amd64.tar.gz
+          curl -fsSLo "$file" "https://github.com/yannh/kubeconform/releases/download/${KUBECONFORM_VERSION}/${file}"
+          echo "${KUBECONFORM_SHA256}  ${file}" | sha256sum --check
+          tar -xzf "$file" kubeconform
+          sudo install kubeconform /usr/local/bin/kubeconform
+      - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
+        with:
+          python-version: "3.12"
+      - run: pip install PyYAML==6.0.3
+      - run: python scripts/render-addons.py
+
+  policy:
+    name: rego tests + gatekeeper drift
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: open-policy-agent/setup-opa@b2b258e089860efaadaaf71bf6e3aecb4a3eeff1 # v2.4.0
+        with:
+          version: 1.21.3
+      - name: opa fmt, check, test
+        run: |
+          opa fmt --list --fail platform/policies/rego
+          opa check --strict platform/policies/rego
+          opa test platform/policies/rego -v
+      - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
+        with:
+          python-version: "3.12"
+      - run: pip install PyYAML==6.0.3
+      # Fails if platform/policies/gatekeeper/templates no longer match the Rego.
+      - run: python scripts/build-gatekeeper.py --check
+
+  prometheus-rules:
+    name: promtool rule tests
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - name: Install promtool
+        env:
+          VERSION: 3.15.0
+          SHA256: 2a542df32eac02ee17b9d844fb2aa1de00dafa5476579ba8a3ba862e9d572ea0
+        run: |
+          dir="prometheus-${VERSION}.linux-amd64"
+          curl -fsSLo prometheus.tar.gz "https://github.com/prometheus/prometheus/releases/download/v${VERSION}/${dir}.tar.gz"
+          echo "${SHA256}  prometheus.tar.gz" | sha256sum --check
+          tar -xzf prometheus.tar.gz "${dir}/promtool"
+          sudo install "${dir}/promtool" /usr/local/bin/promtool
+      - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
+        with:
+          python-version: "3.12"
+      - run: pip install PyYAML==6.0.3
+      - run: scripts/check-prometheus-rules.sh
+
+  yamllint:
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
+        with:
+          python-version: "3.12"
+      - run: pip install yamllint==1.38.0
+      - run: yamllint --format github .

@@ -11,7 +11,7 @@ variable "location" {
 variable "kubernetes_version" {
   description = "Kubernetes minor version. Patch upgrades are applied automatically by the upgrade channel."
   type        = string
-  default     = "1.33"
+  default     = "1.35"
 }
 
 variable "sku_tier" {

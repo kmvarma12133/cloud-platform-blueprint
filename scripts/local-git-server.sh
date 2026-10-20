@@ -5,15 +5,16 @@
 #
 # A throwaway clone has its repoURLs rewritten to the in-cluster URL (so the
 # AppProject source restrictions still hold), is converted to a bare repo and
-# served over git's "dumb" HTTP protocol by a tiny static file server.
-# Only committed changes are served.
+# served over git's smart HTTP protocol: `git http-backend` behind Python's
+# built-in CGI server. (Argo CD reads refs with go-git, which does not support
+# git's older "dumb" static-file HTTP protocol.) Only committed changes are served.
 set -euo pipefail
 
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 # shellcheck source=scripts/lib.sh
 source "$ROOT/scripts/lib.sh"
 
-LOCAL_URL="http://git-server.git-server.svc/cloud-platform-blueprint.git"
+LOCAL_URL="http://git-server.git-server.svc/cgi-bin/git/cloud-platform-blueprint.git"
 # Resolve HEAD once, so a commit made while this runs cannot split the packaging.
 REV="$(git -C "$ROOT" rev-parse HEAD)"
 IMAGE="cpb-local-git:${REV:0:12}"
@@ -29,14 +30,24 @@ grep -rlE 'https://github\.com/[^/]+/cloud-platform-blueprint\.git' "$work/src/p
 git -C "$work/src" -c user.name=local-up -c user.email=local-up@localhost \
   commit --quiet -am "local: point Argo CD at the in-cluster git server"
 git clone --quiet --bare "$work/src" "$work/cloud-platform-blueprint.git"
-git -C "$work/cloud-platform-blueprint.git" update-server-info
 
+mkdir -p "$work/cgi-bin"
+cat >"$work/cgi-bin/git" <<'EOF'
+#!/bin/sh
+export GIT_PROJECT_ROOT=/repos GIT_HTTP_EXPORT_ALL=1
+exec git http-backend
+EOF
 cat >"$work/Dockerfile" <<'EOF'
 FROM python:3.12.15-slim-trixie@sha256:a6e34c598f2467ed0e9a8d349809fcd8b5c603269512df273a0bb1784edc11b1
-COPY cloud-platform-blueprint.git /srv/cloud-platform-blueprint.git
+RUN apt-get update && apt-get install -y --no-install-recommends git && rm -rf /var/lib/apt/lists/*
+COPY cloud-platform-blueprint.git /repos/cloud-platform-blueprint.git
+COPY --chmod=755 cgi-bin/git /srv/cgi-bin/git
+# Owned by the runtime user so git does not refuse it as "dubious ownership".
+RUN chown -R 65534:65534 /repos
 USER 65534
 EXPOSE 8080
-CMD ["python", "-m", "http.server", "8080", "--directory", "/srv"]
+WORKDIR /srv
+CMD ["python", "-m", "http.server", "8080", "--cgi"]
 EOF
 docker build --quiet -t "$IMAGE" "$work" >/dev/null
 kind load docker-image --name "$CLUSTER_NAME" "$IMAGE" >/dev/null 2>&1
@@ -85,7 +96,12 @@ spec:
               drop: ["ALL"]
           resources:
             requests: { cpu: 10m, memory: 32Mi }
-            limits: { cpu: 200m, memory: 64Mi }
+            limits: { cpu: 200m, memory: 128Mi }
+          volumeMounts:
+            - { name: tmp, mountPath: /tmp }
+      volumes:
+        - name: tmp
+          emptyDir: {}
 ---
 apiVersion: v1
 kind: Service

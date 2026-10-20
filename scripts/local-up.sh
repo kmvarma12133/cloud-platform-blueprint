@@ -59,7 +59,7 @@ k -n argocd rollout status statefulset/argocd-application-controller --timeout=3
 # --- Git source --------------------------------------------------------------
 if [ "${LOCAL_GIT:-0}" = "1" ]; then
   "$ROOT/scripts/local-git-server.sh"
-  REPO_URL="http://git-server.git-server.svc/cloud-platform-blueprint.git"
+  REPO_URL="http://git-server.git-server.svc/cgi-bin/git/cloud-platform-blueprint.git"
 fi
 case "$REPO_URL" in
   *github.com/OWNER/*) die "REPO_URL still contains the OWNER placeholder; set REPO_URL or use LOCAL_GIT=1" ;;

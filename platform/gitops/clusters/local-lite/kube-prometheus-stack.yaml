@@ -1,0 +1,8 @@
+# Layered over ../local/kube-prometheus-stack.yaml.
+# Alertmanager needs the receivers Secret from External Secrets, which this
+# profile does not run; alerts still evaluate and show in Prometheus.
+alertmanager:
+  enabled: false
+# Tempo is not installed in this profile.
+grafana:
+  additionalDataSources: []

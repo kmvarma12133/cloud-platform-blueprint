@@ -1,12 +1,13 @@
-# The only manifest applied by hand (once per cluster, right after Argo CD is
-# installed). Everything else is created by Argo CD from Git: this app renders
-# the cluster's directory, which composes ../apps (shared add-ons and the
+# The only manifest applied by hand, once per cluster, right after Argo CD
+# itself (kubectl apply --server-side -k platform/gitops/bootstrap/argocd).
+# Everything else is created by Argo CD from Git: this app renders the
+# cluster's directory, which composes ../apps (shared add-ons and the
 # orders-api ApplicationSet) with cloud-specific pieces and patches.
 #
-#   EKS dev:  platform/gitops/clusters/eks-dev   (default below)
+#   EKS dev:  platform/gitops/clusters/eks-dev     (default below)
 #   EKS prod: platform/gitops/clusters/eks-prod
 #   AKS dev:  platform/gitops/clusters/aks-dev
-#   kind:     platform/gitops/clusters/local     (scripts/local-up.sh sets this)
+#   kind:     platform/gitops/clusters/local or local-lite (set by scripts/local-up.sh)
 apiVersion: argoproj.io/v1alpha1
 kind: Application
 metadata:

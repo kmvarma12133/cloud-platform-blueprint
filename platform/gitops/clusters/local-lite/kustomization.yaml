@@ -1,0 +1,85 @@
+# The local profile minus everything the canary demo does not need, for
+# Docker VMs with less than ~7 GB of memory. scripts/local-up.sh picks it
+# automatically (override with LOCAL_PROFILE=local or local-lite).
+#
+# Kept:    Argo CD, Argo Rollouts, Prometheus + Grafana, KEDA, Gatekeeper and
+#          orders-api in both environments.
+# Dropped: OpenTelemetry Collector and Tempo (tracing), External Secrets and
+#          Alertmanager (alert delivery), Envoy Gateway (the load test calls
+#          the Service directly).
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+resources:
+  - ../local
+patches:
+  - target:
+      kind: Application
+      name: opentelemetry-collector
+    patch: |-
+      $patch: delete
+      apiVersion: argoproj.io/v1alpha1
+      kind: Application
+      metadata:
+        name: opentelemetry-collector
+  - target:
+      kind: Application
+      name: tempo
+    patch: |-
+      $patch: delete
+      apiVersion: argoproj.io/v1alpha1
+      kind: Application
+      metadata:
+        name: tempo
+  - target:
+      kind: Application
+      name: external-secrets
+    patch: |-
+      $patch: delete
+      apiVersion: argoproj.io/v1alpha1
+      kind: Application
+      metadata:
+        name: external-secrets
+  - target:
+      kind: Application
+      name: platform-secrets
+    patch: |-
+      $patch: delete
+      apiVersion: argoproj.io/v1alpha1
+      kind: Application
+      metadata:
+        name: platform-secrets
+  - target:
+      kind: Application
+      name: envoy-gateway
+    patch: |-
+      $patch: delete
+      apiVersion: argoproj.io/v1alpha1
+      kind: Application
+      metadata:
+        name: envoy-gateway
+  - target:
+      kind: Application
+      name: platform-gateway
+    patch: |-
+      $patch: delete
+      apiVersion: argoproj.io/v1alpha1
+      kind: Application
+      metadata:
+        name: platform-gateway
+  - target:
+      kind: Application
+      name: kube-prometheus-stack
+    patch: |-
+      - op: add
+        path: /spec/sources/0/helm/valueFiles/-
+        value: $values/platform/gitops/clusters/local-lite/kube-prometheus-stack.yaml
+  - target:
+      kind: ApplicationSet
+      name: orders-api
+    patch: |-
+      - op: replace
+        path: /spec/template/spec/source/helm/valueFiles
+        value:
+          - "values-{{.env}}.yaml"
+          - "values-local.yaml"
+          - "values-local-lite.yaml"

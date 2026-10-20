@@ -21,7 +21,7 @@ CHART=platform/charts/orders-api
 CRDS_CATALOG='https://raw.githubusercontent.com/datreeio/CRDs-catalog/main/{{.Group}}/{{.ResourceKind}}_{{.ResourceAPIVersion}}.json'
 KUBECONFORM=(kubeconform -strict -summary -output text
   -schema-location default -schema-location "$CRDS_CATALOG"
-  -skip K8sRequiredLimits,K8sDisallowLatestTag,K8sRequireNonRoot,K8sAllowedRegistries,K8sRequiredLabels)
+  -skip "K8sRequiredLimits,K8sDisallowLatestTag,K8sRequireNonRoot,K8sAllowedRegistries,K8sRequiredLabels")
 
 section() { printf '\n== %s\n' "$*"; }
 
@@ -30,11 +30,16 @@ helm lint "$CHART" -f "$CHART/values-dev.yaml"
 helm lint "$CHART" -f "$CHART/values-prod.yaml"
 
 section "helm template | kubeconform"
+# Each environment on its own, then layered the way the local profiles use it.
+render() {
+  local env=$1 label=$2; shift 2
+  printf '%-34s' "orders-api ($env, $label)"
+  helm template orders-api "$CHART" -n "orders-$env" -f "$CHART/values-$env.yaml" "$@" | "${KUBECONFORM[@]}" -
+}
 for env in dev prod; do
-  printf '%-34s' "orders-api ($env)"
-  helm template orders-api "$CHART" -n "orders-$env" -f "$CHART/values-$env.yaml" | "${KUBECONFORM[@]}" -
-  printf '%-34s' "orders-api ($env + local)"
-  helm template orders-api "$CHART" -n "orders-$env" -f "$CHART/values-$env.yaml" -f "$CHART/values-local.yaml" | "${KUBECONFORM[@]}" -
+  render "$env" cloud
+  render "$env" local -f "$CHART/values-local.yaml"
+  render "$env" local-lite -f "$CHART/values-local.yaml" -f "$CHART/values-local-lite.yaml"
 done
 
 section "kustomize build | kubeconform"

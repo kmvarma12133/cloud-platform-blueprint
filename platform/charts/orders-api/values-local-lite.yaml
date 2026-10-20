@@ -1,0 +1,5 @@
+# platform/gitops/clusters/local-lite runs no collector and no gateway.
+otel:
+  enabled: false
+httpRoute:
+  enabled: false

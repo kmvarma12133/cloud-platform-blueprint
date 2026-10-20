@@ -1,0 +1,22 @@
+# Argo CD itself: the upstream v3.5.5 install manifest, pinned, plus two
+# patches. Applied once per cluster with
+#   kubectl apply --server-side -k platform/gitops/bootstrap/argocd
+# (server-side because the ApplicationSet CRD is too large for client-side
+# apply). After bootstrap it can be added to apps/ so Argo CD manages itself.
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+namespace: argocd
+resources:
+  - namespace.yaml
+  - https://raw.githubusercontent.com/argoproj/argo-cd/v3.5.5/manifests/install.yaml
+patches:
+  - path: argocd-cm.yaml
+  # No SSO or notifications in this reference setup; scaling them to zero
+  # keeps the footprint small without diverging from the upstream manifest.
+  - target:
+      kind: Deployment
+      name: argocd-(dex-server|notifications-controller)
+    patch: |-
+      - op: replace
+        path: /spec/replicas
+        value: 0

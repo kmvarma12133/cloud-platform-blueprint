@@ -1,0 +1,18 @@
+# Three-node kind cluster for the local demo (scripts/local-up.sh).
+# Kubernetes 1.35, the same minor as the EKS and AKS clusters, pinned by digest.
+kind: Cluster
+apiVersion: kind.x-k8s.io/v1alpha4
+name: cpb
+nodes:
+  - role: control-plane
+    image: kindest/node:v1.35.8@sha256:07b2536e30b803ed61d1677a79df6115f798ce64c80f9e22f6ed45afd09323c0
+  # Each worker pretends to be in its own zone, so the chart's topology spread
+  # constraints have something to spread across.
+  - role: worker
+    image: kindest/node:v1.35.8@sha256:07b2536e30b803ed61d1677a79df6115f798ce64c80f9e22f6ed45afd09323c0
+    labels:
+      topology.kubernetes.io/zone: zone-a
+  - role: worker
+    image: kindest/node:v1.35.8@sha256:07b2536e30b803ed61d1677a79df6115f798ce64c80f9e22f6ed45afd09323c0
+    labels:
+      topology.kubernetes.io/zone: zone-b

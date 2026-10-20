@@ -307,3 +307,12 @@ resource "aws_cloudwatch_event_target" "karpenter" {
   rule     = aws_cloudwatch_event_rule.karpenter[each.key].name
   arn      = aws_sqs_queue.karpenter_interruption.arn
 }
+
+# Karpenter-launched nodes need the EKS-managed cluster security group to reach
+# the control plane. EKS creates that group itself, so it is tagged here for the
+# EC2NodeClass securityGroupSelectorTerms to discover.
+resource "aws_ec2_tag" "cluster_sg_discovery" {
+  resource_id = aws_eks_cluster.this.vpc_config[0].cluster_security_group_id
+  key         = "karpenter.sh/discovery"
+  value       = var.cluster_name
+}

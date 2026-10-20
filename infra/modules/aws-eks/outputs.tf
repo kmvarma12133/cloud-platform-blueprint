@@ -27,3 +27,8 @@ output "karpenter_interruption_queue" {
   description = "SQS queue name passed to the Karpenter Helm chart."
   value       = aws_sqs_queue.karpenter_interruption.name
 }
+
+output "external_secrets_role_arn" {
+  description = "Role assumed by the External Secrets Operator through Pod Identity."
+  value       = aws_iam_role.external_secrets.arn
+}

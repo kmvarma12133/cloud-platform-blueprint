@@ -26,6 +26,7 @@ resource "aws_eks_access_entry" "karpenter_node" {
 }
 
 # Controller identity via EKS Pod Identity (no OIDC trust-policy juggling).
+# The same trust policy is reused by every Pod Identity role in this module.
 data "aws_iam_policy_document" "karpenter_controller_assume" {
   statement {
     actions = ["sts:AssumeRole", "sts:TagSession"]

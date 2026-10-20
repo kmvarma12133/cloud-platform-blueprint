@@ -1,0 +1,4 @@
+# Python tools used by CI, the Makefile and the scripts in this directory.
+PyYAML==6.0.3
+yamllint==1.38.0
+checkov==3.3.30

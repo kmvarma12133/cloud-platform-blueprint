@@ -1,0 +1,183 @@
+name: terraform
+
+# Static checks only: no cloud credentials are needed or available. A plan job
+# using GitHub OIDC is sketched (commented out) at the bottom.
+on:
+  pull_request:
+    paths:
+      - infra/**
+      - .tflint.hcl
+      - .terraform-docs.yml
+      - .github/workflows/terraform.yml
+  push:
+    branches: [main]
+    paths:
+      - infra/**
+      - .tflint.hcl
+      - .terraform-docs.yml
+      - .github/workflows/terraform.yml
+
+permissions: {}
+
+concurrency:
+  group: terraform-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  TF_VERSION: 1.16.6
+  TFLINT_VERSION: v0.64.0
+  TF_IN_AUTOMATION: "true"
+
+jobs:
+  fmt:
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: hashicorp/setup-terraform@dfe3c3f87815947d99a8997f908cb6525fc44e9e # v4.0.1
+        with:
+          terraform_version: ${{ env.TF_VERSION }}
+          terraform_wrapper: false
+      - run: terraform fmt -check -recursive -diff infra
+      - name: Install Terragrunt
+        env:
+          VERSION: v1.1.6
+          SHA256: d75a80bb264758ba00dabcb17f4b507fcdab4ca90d9e41f96750df036bf69b04
+        run: |
+          curl -fsSLo terragrunt "https://github.com/gruntwork-io/terragrunt/releases/download/${VERSION}/terragrunt_linux_amd64"
+          echo "${SHA256}  terragrunt" | sha256sum --check
+          sudo install terragrunt /usr/local/bin/terragrunt
+      # Formatting, then every unit's inputs against its module's variables.
+      # Dependencies resolve to their mock outputs, so no state is read.
+      - name: Terragrunt HCL
+        working-directory: infra/live
+        env:
+          TG_TF_PATH: terraform
+        run: |
+          terragrunt hcl format --check
+          terragrunt hcl validate --inputs --strict
+
+  validate:
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: read
+    strategy:
+      fail-fast: false
+      matrix:
+        module:
+          - infra/modules/aws-vpc
+          - infra/modules/aws-eks
+          - infra/modules/azure-aks
+          - infra/bootstrap
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: hashicorp/setup-terraform@dfe3c3f87815947d99a8997f908cb6525fc44e9e # v4.0.1
+        with:
+          terraform_version: ${{ env.TF_VERSION }}
+          terraform_wrapper: false
+      - name: terraform validate
+        working-directory: ${{ matrix.module }}
+        run: |
+          terraform init -backend=false -input=false
+          terraform validate
+      - uses: terraform-linters/setup-tflint@6ffdbaa3be476b3431f7275c26966ef32ff60337 # v6.3.2
+        with:
+          tflint_version: ${{ env.TFLINT_VERSION }}
+          cache: true
+      - name: tflint
+        env:
+          # Plugin downloads from GitHub releases are rate-limited without a token.
+          GITHUB_TOKEN: ${{ github.token }}
+          MODULE: ${{ matrix.module }}
+        run: |
+          tflint --init --config "$GITHUB_WORKSPACE/.tflint.hcl"
+          tflint --chdir "$MODULE" --config "$GITHUB_WORKSPACE/.tflint.hcl" --format compact
+
+  docs:
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - name: Install terraform-docs
+        env:
+          VERSION: v0.24.0
+          SHA256: 9005daf969de0b50134493a2c00078b49f5f5b39d021cda7c89bf4d4f3d776d3
+        run: |
+          file="terraform-docs-${VERSION}-linux-amd64.tar.gz"
+          curl -fsSLo "$file" "https://github.com/terraform-docs/terraform-docs/releases/download/${VERSION}/${file}"
+          echo "${SHA256}  ${file}" | sha256sum --check
+          tar -xzf "$file" terraform-docs
+          sudo install terraform-docs /usr/local/bin/terraform-docs
+      - name: Module READMEs are up to date
+        run: |
+          status=0
+          for module in infra/modules/*/; do
+            terraform-docs -c .terraform-docs.yml --output-check "$module" || {
+              echo "::error file=${module}README.md::stale terraform-docs section; run 'make docs'"
+              status=1
+            }
+          done
+          exit $status
+
+  checkov:
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: read
+      security-events: write # upload SARIF to code scanning
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
+        with:
+          python-version: "3.12"
+          cache: pip
+          cache-dependency-path: scripts/requirements.txt
+      - run: pip install -r scripts/requirements.txt
+      # Skips are inline (#checkov:skip=ID:reason) next to the code they cover.
+      - run: checkov --directory infra --framework terraform --compact --output cli --output sarif --output-file-path console,checkov.sarif
+      - uses: github/codeql-action/upload-sarif@6f2ac81f5cd81fe351a197ba0b00d91d03cd2aee # v4.39.0
+        if: always()
+        with:
+          sarif_file: checkov.sarif
+          category: checkov
+
+  # How a plan would run against a real account, with no long-lived keys:
+  #   1. In AWS, an IAM OIDC identity provider for token.actions.githubusercontent.com.
+  #   2. A read-only "terraform-plan" role whose trust policy accepts only
+  #      repo:<owner>/cloud-platform-blueprint:pull_request (or the main branch).
+  #   3. The job exchanges its short-lived OIDC token for that role's credentials.
+  # Apply would use a separate role, trusted only for main and gated by an environment.
+  #
+  # plan:
+  #   needs: [fmt, validate]
+  #   runs-on: ubuntu-24.04
+  #   permissions:
+  #     contents: read
+  #     id-token: write   # lets the job request an OIDC token
+  #     pull-requests: write
+  #   strategy:
+  #     matrix:
+  #       unit: [infra/live/aws/dev/vpc, infra/live/aws/dev/eks]
+  #   steps:
+  #     - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+  #     - uses: aws-actions/configure-aws-credentials@e1253824e5c10ff9df46874f81ed3ec929e19cfd # v6.3.0
+  #       with:
+  #         role-to-assume: arn:aws:iam::111111111111:role/terraform-plan
+  #         role-session-name: gha-${{ github.run_id }}
+  #         aws-region: eu-west-1
+  #         allowed-account-ids: "111111111111"
+  #     - uses: hashicorp/setup-terraform@dfe3c3f87815947d99a8997f908cb6525fc44e9e # v4.0.1
+  #       with:
+  #         terraform_version: ${{ env.TF_VERSION }}
+  #     - name: terragrunt plan
+  #       working-directory: ${{ matrix.unit }}
+  #       run: terragrunt plan -lock-timeout=5m -out=tfplan

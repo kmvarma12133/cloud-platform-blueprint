@@ -28,7 +28,7 @@ variable "sku_tier" {
 variable "vnet_cidr" {
   description = "Address space of the cluster VNet. Only nodes consume VNet IPs (pods use the overlay CIDR)."
   type        = string
-  default     = "10.20.0.0/16"
+  default     = "10.30.0.0/16"
 
   validation {
     condition     = can(cidrhost(var.vnet_cidr, 0))
@@ -39,7 +39,7 @@ variable "vnet_cidr" {
 variable "node_subnet_cidr" {
   description = "Subnet for node NICs. Must sit inside vnet_cidr."
   type        = string
-  default     = "10.20.0.0/22"
+  default     = "10.30.0.0/22"
 }
 
 variable "pod_cidr" {

@@ -54,7 +54,8 @@ LATENCY = Histogram(
     "http_request_duration_seconds",
     "HTTP request latency",
     ["method", "route"],
-    buckets=(0.005, 0.01, 0.025, 0.05, 0.1, 0.25, 0.5, 1.0, 2.5, 5.0),
+    # 0.3 matches the latency SLO threshold so the SLI counts it exactly.
+    buckets=(0.005, 0.01, 0.025, 0.05, 0.1, 0.25, 0.3, 0.5, 1.0, 2.5, 5.0),
 )
 
 

@@ -1,6 +1,10 @@
-fastapi==0.115.4
-uvicorn[standard]==0.32.0
-prometheus-client==0.21.0
-opentelemetry-sdk==1.27.0
-opentelemetry-exporter-otlp-proto-http==1.27.0
-opentelemetry-instrumentation-fastapi==0.48b0
+fastapi==0.154.0
+uvicorn[standard]==0.54.0
+prometheus-client==0.26.0
+opentelemetry-sdk==1.45.1
+opentelemetry-exporter-otlp-proto-http==1.45.1
+opentelemetry-instrumentation-fastapi==0.66b1
+# Transitive, pinned explicitly because both have had security fixes that the
+# image scan gates on; Dependabot keeps them current.
+starlette==1.9.0
+protobuf==7.36.2

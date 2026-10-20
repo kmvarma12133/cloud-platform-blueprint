@@ -1,0 +1,40 @@
+name: Bug
+description: Something in the platform or the demo does not work as documented.
+labels: [bug]
+body:
+  - type: dropdown
+    id: area
+    attributes:
+      label: Area
+      options:
+        - Terraform / Terragrunt
+        - GitOps / Argo CD
+        - Helm chart / Argo Rollouts
+        - Policies (Gatekeeper)
+        - Observability
+        - CI/CD
+        - Local demo
+    validations:
+      required: true
+  - type: textarea
+    id: what-happened
+    attributes:
+      label: What happened
+      description: What you did, what you expected, and what happened instead.
+    validations:
+      required: true
+  - type: textarea
+    id: reproduce
+    attributes:
+      label: Steps to reproduce
+      placeholder: |
+        1. make local-up
+        2. ...
+    validations:
+      required: true
+  - type: textarea
+    id: logs
+    attributes:
+      label: Relevant output
+      description: Command output, Argo CD or Kubernetes events. Remove any secrets.
+      render: shell

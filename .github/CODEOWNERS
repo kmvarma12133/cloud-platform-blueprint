@@ -1,0 +1,6 @@
+# Review is required from the owners below for changes under each path
+# (enforced through branch protection on main).
+*                       @OWNER
+/infra/                 @OWNER
+/platform/policies/     @OWNER
+/.github/workflows/     @OWNER

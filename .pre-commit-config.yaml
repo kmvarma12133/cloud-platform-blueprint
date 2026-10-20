@@ -1,0 +1,45 @@
+# pre-commit install   # then the hooks run on every commit
+# pre-commit run --all-files
+repos:
+  - repo: https://github.com/pre-commit/pre-commit-hooks
+    rev: v6.0.0
+    hooks:
+      - id: check-merge-conflict
+      - id: detect-private-key
+      - id: end-of-file-fixer
+      - id: trailing-whitespace
+      - id: check-yaml
+        # Helm templates and multi-document files are checked by their own tools.
+        exclude: ^platform/charts/.*/templates/
+        args: [--allow-multiple-documents]
+
+  - repo: https://github.com/antonbabenko/pre-commit-terraform
+    rev: v1.109.3
+    hooks:
+      - id: terraform_fmt
+      - id: terraform_validate
+        files: ^infra/(modules|bootstrap)/
+        args: [--hook-config=--retry-once-with-cleanup=true]
+      - id: terraform_tflint
+        args: [--args=--config=__GIT_WORKING_DIR__/.tflint.hcl]
+      - id: terraform_docs
+        files: ^infra/modules/
+        args: [--args=--config=.terraform-docs.yml]
+
+  - repo: https://github.com/astral-sh/ruff-pre-commit
+    rev: v0.17.1
+    hooks:
+      - id: ruff
+        args: [--config=app/pyproject.toml]
+      - id: ruff-format
+        args: [--config=app/pyproject.toml]
+
+  - repo: https://github.com/adrienverge/yamllint
+    rev: v1.38.0
+    hooks:
+      - id: yamllint
+
+  - repo: https://github.com/gitleaks/gitleaks
+    rev: v8.30.1
+    hooks:
+      - id: gitleaks

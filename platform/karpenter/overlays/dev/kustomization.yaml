@@ -1,0 +1,28 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+resources:
+  - ../../base
+patches:
+  - target:
+      kind: EC2NodeClass
+      name: default
+    patch: |-
+      - op: replace
+        path: /spec/role
+        value: cpb-dev-karpenter-node
+      - op: replace
+        path: /spec/subnetSelectorTerms/0/tags/karpenter.sh~1discovery
+        value: cpb-dev
+      - op: replace
+        path: /spec/securityGroupSelectorTerms/0/tags/karpenter.sh~1discovery
+        value: cpb-dev
+  - target:
+      kind: NodePool
+      name: default
+    patch: |-
+      - op: replace
+        path: /spec/limits/cpu
+        value: "64"
+      - op: replace
+        path: /spec/limits/memory
+        value: 256Gi

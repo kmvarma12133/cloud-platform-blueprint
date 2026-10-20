@@ -1,0 +1,52 @@
+apiVersion: karpenter.k8s.aws/v1
+kind: EC2NodeClass
+metadata:
+  name: default
+spec:
+  # Node IAM role created by infra/modules/aws-eks (output karpenter_node_role_name).
+  # The overlays set the real name per cluster.
+  role: CLUSTER_NAME-karpenter-node
+
+  # Pinned Bottlerocket release: AMI changes go through Git like everything
+  # else, and Karpenter's drift detection replaces nodes when this is bumped.
+  amiSelectorTerms:
+    - alias: bottlerocket@v1.66.0
+
+  # Subnets and security groups are found by the tags Terraform puts on the
+  # private subnets and the EKS cluster security group.
+  subnetSelectorTerms:
+    - tags:
+        karpenter.sh/discovery: CLUSTER_NAME
+  securityGroupSelectorTerms:
+    - tags:
+        karpenter.sh/discovery: CLUSTER_NAME
+
+  metadataOptions:
+    httpEndpoint: enabled
+    httpProtocolIPv6: disabled
+    # IMDSv2 only, and a hop limit of 1 so pods cannot reach the node's
+    # credentials. Pods get AWS access through Pod Identity instead.
+    httpTokens: required
+    httpPutResponseHopLimit: 1
+
+  # Bottlerocket uses a small OS volume and a separate data volume for images
+  # and ephemeral storage. Both are encrypted gp3.
+  blockDeviceMappings:
+    - deviceName: /dev/xvda
+      ebs:
+        volumeSize: 4Gi
+        volumeType: gp3
+        encrypted: true
+        deleteOnTermination: true
+    - deviceName: /dev/xvdb
+      ebs:
+        volumeSize: 50Gi
+        volumeType: gp3
+        iops: 3000
+        throughput: 125
+        encrypted: true
+        deleteOnTermination: true
+
+  tags:
+    Project: cloud-platform-blueprint
+    ManagedBy: karpenter

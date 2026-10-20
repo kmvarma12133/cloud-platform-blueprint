@@ -1,0 +1,35 @@
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: kubecost
+  namespace: argocd
+  annotations:
+    argocd.argoproj.io/sync-wave: "5"
+spec:
+  project: platform
+  source:
+    repoURL: https://kubecost.github.io/cost-analyzer
+    chart: cost-analyzer
+    targetRevision: 2.9.7
+    helm:
+      releaseName: kubecost
+      valuesObject:
+        # Reuse the cluster Prometheus rather than running a second one.
+        global:
+          prometheus:
+            enabled: false
+            fqdn: http://kube-prometheus-stack-prometheus.monitoring:9090
+          grafana:
+            enabled: false
+            proxy: false
+        kubecostProductConfigs:
+          clusterName: cpb
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: kubecost
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true
+    syncOptions:
+      - CreateNamespace=true

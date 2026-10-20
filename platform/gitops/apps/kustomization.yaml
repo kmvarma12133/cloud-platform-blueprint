@@ -1,0 +1,32 @@
+# Cloud-neutral base: everything every cluster runs. The directories under
+# ../clusters compose this with cloud-specific pieces (../aws) and patches.
+#
+# Sync waves (lower first; Argo CD waits for each wave to be healthy):
+#   -20  AppProjects
+#   -15  prometheus-operator-crds  (ServiceMonitor etc. for everyone below)
+#   -10  operators: external-secrets, cert-manager, argo-rollouts, keda,
+#        gatekeeper, envoy-gateway (and karpenter on AWS)
+#    -5  platform-secrets          (ClusterSecretStore + ExternalSecrets)
+#     0  kube-prometheus-stack, platform-gateway, platform-policies
+#     5  opentelemetry-collector, tempo, kubecost, platform-observability
+#    10  orders-api ApplicationSet
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+resources:
+  - projects.yaml
+  - prometheus-operator-crds.yaml
+  - external-secrets.yaml
+  - cert-manager.yaml
+  - argo-rollouts.yaml
+  - keda.yaml
+  - gatekeeper.yaml
+  - envoy-gateway.yaml
+  - platform-secrets.yaml
+  - kube-prometheus-stack.yaml
+  - platform-gateway.yaml
+  - platform-policies.yaml
+  - opentelemetry-collector.yaml
+  - tempo.yaml
+  - kubecost.yaml
+  - platform-observability.yaml
+  - orders-api.yaml

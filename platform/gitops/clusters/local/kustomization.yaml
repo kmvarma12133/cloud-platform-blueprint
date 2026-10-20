@@ -1,0 +1,74 @@
+# kind cluster for the local demo (scripts/local-up.sh).
+#  - Both environments run side by side: orders-dev auto-syncs and orders-prod
+#    waits for a manual sync, so promotion can be shown on one laptop.
+#  - No Karpenter, kubecost or cert-manager, and no cloud load balancer or TLS.
+#  - Small resource requests so the stack fits a laptop-sized Docker VM.
+#  - orders-api also reads values-local.yaml (locally built image tags), and
+#    image.tag Helm parameters set by the demo scripts are preserved.
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+resources:
+  - ../../apps
+patches:
+  - target:
+      kind: Application
+      name: kubecost
+    patch: |-
+      $patch: delete
+      apiVersion: argoproj.io/v1alpha1
+      kind: Application
+      metadata:
+        name: kubecost
+  - target:
+      kind: Application
+      name: cert-manager
+    patch: |-
+      $patch: delete
+      apiVersion: argoproj.io/v1alpha1
+      kind: Application
+      metadata:
+        name: cert-manager
+  - target:
+      kind: Application
+      name: platform-gateway
+    patch: |-
+      - op: replace
+        path: /spec/source/path
+        value: platform/gateway/overlays/local
+  - target:
+      kind: Application
+      name: platform-secrets
+    patch: |-
+      - op: replace
+        path: /spec/source/path
+        value: platform/secrets/local
+  - target:
+      kind: Application
+      name: gatekeeper
+    patch: |-
+      - op: replace
+        path: /spec/source/helm/valuesObject/replicas
+        value: 1
+  - target:
+      kind: Application
+      name: kube-prometheus-stack
+    patch: |-
+      - op: add
+        path: /spec/sources/0/helm/valueFiles/-
+        value: $values/platform/gitops/clusters/local/kube-prometheus-stack.yaml
+  - target:
+      kind: ApplicationSet
+      name: orders-api
+    patch: |-
+      - op: replace
+        path: /spec/template/spec/source/helm/valueFiles
+        value:
+          - "values-{{.env}}.yaml"
+          - "values-local.yaml"
+      - op: add
+        path: /spec/ignoreApplicationDifferences
+        value:
+          # Lets scripts/break-canary.sh set image.tag on the generated
+          # Application without the ApplicationSet controller reverting it.
+          - jsonPointers:
+              - /spec/source/helm/parameters

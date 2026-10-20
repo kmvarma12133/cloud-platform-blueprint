@@ -1,0 +1,33 @@
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: gatekeeper
+  namespace: argocd
+  annotations:
+    argocd.argoproj.io/sync-wave: "-10"
+spec:
+  project: platform
+  source:
+    repoURL: https://open-policy-agent.github.io/gatekeeper/charts
+    chart: gatekeeper
+    targetRevision: 3.23.1
+    helm:
+      releaseName: gatekeeper
+      valuesObject:
+        replicas: 2
+        auditInterval: 60
+        # Policies here only validate; turning mutation off removes a webhook.
+        disableMutation: true
+        emitAdmissionEvents: true
+        emitAuditEvents: true
+        logDenies: true
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: gatekeeper-system
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true
+    syncOptions:
+      - CreateNamespace=true
+      - ServerSideApply=true

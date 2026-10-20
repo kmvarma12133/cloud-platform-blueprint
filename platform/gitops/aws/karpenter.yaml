@@ -1,0 +1,49 @@
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: karpenter
+  namespace: argocd
+  annotations:
+    argocd.argoproj.io/sync-wave: "-10"
+spec:
+  project: platform
+  source:
+    repoURL: oci://public.ecr.aws/karpenter/karpenter
+    targetRevision: 1.15.0
+    helm:
+      releaseName: karpenter
+      valuesObject:
+        settings:
+          # Set per cluster by ../clusters/eks-*; both must match the cluster
+          # name and SQS queue created by infra/modules/aws-eks.
+          clusterName: CLUSTER_NAME
+          interruptionQueue: CLUSTER_NAME-karpenter
+        # Credentials come from the EKS Pod Identity association in Terraform,
+        # so the service account needs no IRSA annotation.
+        serviceAccount:
+          name: karpenter
+        replicas: 2
+        # Run on the tainted system node group, never on nodes Karpenter
+        # manages itself (it could end up evicting its own pods). The chart
+        # already tolerates the CriticalAddonsOnly taint.
+        nodeSelector:
+          node-role: system
+        controller:
+          resources:
+            requests:
+              cpu: 250m
+              memory: 512Mi
+            limits:
+              memory: 512Mi
+        serviceMonitor:
+          enabled: true
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: karpenter
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true
+    syncOptions:
+      - CreateNamespace=true
+      - ServerSideApply=true

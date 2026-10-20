@@ -1,0 +1,63 @@
+# Two projects with different blast radius.
+#
+# platform:     cluster add-ons. May install CRDs and cluster-scoped RBAC, but
+#               only from this repo and the pinned upstream chart repositories.
+# applications: product workloads. This repo only, orders-* namespaces only,
+#               and no cluster-scoped resources except the Namespace itself.
+apiVersion: argoproj.io/v1alpha1
+kind: AppProject
+metadata:
+  name: platform
+  namespace: argocd
+  annotations:
+    argocd.argoproj.io/sync-wave: "-20"
+spec:
+  description: Cluster add-ons managed by the platform team
+  sourceRepos:
+    - https://github.com/OWNER/cloud-platform-blueprint.git
+    - https://argoproj.github.io/argo-helm
+    - https://prometheus-community.github.io/helm-charts
+    - https://open-telemetry.github.io/opentelemetry-helm-charts
+    - https://grafana-community.github.io/helm-charts
+    - https://open-policy-agent.github.io/gatekeeper/charts
+    - https://kedacore.github.io/charts
+    - https://charts.external-secrets.io
+    - https://charts.jetstack.io
+    - https://kubecost.github.io/cost-analyzer
+    - oci://docker.io/envoyproxy/gateway-helm
+    - oci://public.ecr.aws/karpenter/karpenter
+  destinations:
+    - server: https://kubernetes.default.svc
+      namespace: "*"
+  clusterResourceWhitelist:
+    - group: "*"
+      kind: "*"
+---
+apiVersion: argoproj.io/v1alpha1
+kind: AppProject
+metadata:
+  name: applications
+  namespace: argocd
+  annotations:
+    argocd.argoproj.io/sync-wave: "-20"
+spec:
+  description: Product workloads
+  sourceRepos:
+    - https://github.com/OWNER/cloud-platform-blueprint.git
+  destinations:
+    - server: https://kubernetes.default.svc
+      namespace: orders-*
+  # CreateNamespace=true needs Namespace; nothing else cluster-scoped is allowed.
+  clusterResourceWhitelist:
+    - group: ""
+      kind: Namespace
+  # Workloads may not ship their own RBAC or quota changes.
+  namespaceResourceBlacklist:
+    - group: ""
+      kind: ResourceQuota
+    - group: ""
+      kind: LimitRange
+    - group: rbac.authorization.k8s.io
+      kind: Role
+    - group: rbac.authorization.k8s.io
+      kind: RoleBinding

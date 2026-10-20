@@ -1,0 +1,31 @@
+# Upstream chart, values from this repo (multi-source: the second source is
+# only referenced as $values).
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: opentelemetry-collector
+  namespace: argocd
+  annotations:
+    argocd.argoproj.io/sync-wave: "5"
+spec:
+  project: platform
+  sources:
+    - repoURL: https://open-telemetry.github.io/opentelemetry-helm-charts
+      chart: opentelemetry-collector
+      targetRevision: 0.176.0
+      helm:
+        releaseName: opentelemetry-collector
+        valueFiles:
+          - $values/platform/observability/values/opentelemetry-collector.yaml
+    - repoURL: https://github.com/OWNER/cloud-platform-blueprint.git
+      targetRevision: main
+      ref: values
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: observability
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true
+    syncOptions:
+      - CreateNamespace=true

@@ -1,0 +1,66 @@
+# AKS dev cluster. Differences from EKS:
+#  - No Karpenter: the AKS user pool uses the cluster autoscaler.
+#  - No self-managed Gatekeeper. The Azure Policy add-on (enabled in
+#    infra/modules/azure-aks) already runs Gatekeeper, and a second copy would
+#    fight it for the same webhooks and CRDs. Policies are assigned through
+#    Azure Policy instead; see docs/adr/0006-gatekeeper-vs-kyverno.md.
+#  - Secrets come from Azure Key Vault through workload identity.
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+resources:
+  - ../../apps
+patches:
+  - target:
+      kind: ApplicationSet
+      name: orders-api
+    patch: |-
+      - op: add
+        path: /spec/generators/0/selector
+        value:
+          matchLabels:
+            env: dev
+  - target:
+      kind: Application
+      name: gatekeeper
+    patch: |-
+      $patch: delete
+      apiVersion: argoproj.io/v1alpha1
+      kind: Application
+      metadata:
+        name: gatekeeper
+  - target:
+      kind: Application
+      name: platform-policies
+    patch: |-
+      $patch: delete
+      apiVersion: argoproj.io/v1alpha1
+      kind: Application
+      metadata:
+        name: platform-policies
+  - target:
+      kind: Application
+      name: platform-secrets
+    patch: |-
+      - op: replace
+        path: /spec/source/path
+        value: platform/secrets/azure
+  - target:
+      kind: Application
+      name: external-secrets
+    patch: |-
+      - op: add
+        path: /spec/source/helm/valuesObject/serviceAccount/annotations
+        value:
+          # Client ID of the managed identity federated with this service account.
+          azure.workload.identity/client-id: 00000000-0000-0000-0000-000000000000
+      - op: add
+        path: /spec/source/helm/valuesObject/podLabels
+        value:
+          azure.workload.identity/use: "true"
+  - target:
+      kind: Application
+      name: kubecost
+    patch: |-
+      - op: replace
+        path: /spec/source/helm/valuesObject/kubecostProductConfigs/clusterName
+        value: cpb-aks-dev

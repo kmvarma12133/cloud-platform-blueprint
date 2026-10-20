@@ -1,0 +1,57 @@
+# orders-api for every environment from one template. Each list element is an
+# environment; the cluster overlays narrow the list with a selector, so the
+# dev cluster only creates orders-api-dev and the prod cluster only orders-api-prod.
+apiVersion: argoproj.io/v1alpha1
+kind: ApplicationSet
+metadata:
+  name: orders-api
+  namespace: argocd
+  annotations:
+    argocd.argoproj.io/sync-wave: "10"
+spec:
+  goTemplate: true
+  goTemplateOptions: ["missingkey=error"]
+  generators:
+    - list:
+        elements:
+          - env: dev
+            autoSync: true
+          - env: prod
+            # Prod changes wait for a human to press Sync after the promotion PR merges.
+            autoSync: false
+  template:
+    metadata:
+      name: "orders-api-{{.env}}"
+      labels:
+        app.kubernetes.io/name: orders-api
+        env: "{{.env}}"
+    spec:
+      project: applications
+      source:
+        repoURL: https://github.com/OWNER/cloud-platform-blueprint.git
+        targetRevision: main
+        path: platform/charts/orders-api
+        helm:
+          releaseName: orders-api
+          valueFiles:
+            - "values-{{.env}}.yaml"
+      destination:
+        server: https://kubernetes.default.svc
+        namespace: "orders-{{.env}}"
+      syncPolicy:
+        syncOptions:
+          - CreateNamespace=true
+        managedNamespaceMetadata:
+          labels:
+            owner: team-orders
+            # Allows HTTPRoutes in this namespace to attach to the public Gateway.
+            platform.cpb.io/gateway: public
+  # Only environments marked autoSync get automated sync with prune and selfHeal.
+  templatePatch: |
+    {{- if .autoSync }}
+    spec:
+      syncPolicy:
+        automated:
+          prune: true
+          selfHeal: true
+    {{- end }}

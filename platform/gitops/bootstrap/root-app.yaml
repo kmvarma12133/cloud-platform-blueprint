@@ -1,0 +1,30 @@
+# The only manifest applied by hand (once per cluster, right after Argo CD is
+# installed). Everything else is created by Argo CD from Git: this app renders
+# the cluster's directory, which composes ../apps (shared add-ons and the
+# orders-api ApplicationSet) with cloud-specific pieces and patches.
+#
+#   EKS dev:  platform/gitops/clusters/eks-dev   (default below)
+#   EKS prod: platform/gitops/clusters/eks-prod
+#   AKS dev:  platform/gitops/clusters/aks-dev
+#   kind:     platform/gitops/clusters/local     (scripts/local-up.sh sets this)
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: root
+  namespace: argocd
+spec:
+  project: default
+  source:
+    repoURL: https://github.com/OWNER/cloud-platform-blueprint.git
+    targetRevision: main
+    path: platform/gitops/clusters/eks-dev
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: argocd
+  syncPolicy:
+    automated:
+      # Removing an Application from Git deletes the Application object.
+      # Child Applications carry no finalizer, so their workloads are left
+      # running until removed on purpose.
+      prune: true
+      selfHeal: true

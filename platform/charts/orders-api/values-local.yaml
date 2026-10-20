@@ -1,0 +1,26 @@
+# Local kind demo only, layered over values-<env>.yaml by
+# platform/gitops/clusters/local. scripts/local-up.sh builds the images and
+# loads them straight into kind, so nothing is pulled.
+image:
+  tag: local-v1
+  pullPolicy: Never
+
+resources:
+  requests:
+    cpu: 50m
+    memory: 64Mi
+  limits:
+    cpu: 250m
+    memory: 128Mi
+
+autoscaling:
+  minReplicas: 2
+  maxReplicas: 6
+  # A low threshold so the load test visibly scales the Rollout.
+  rpsPerReplica: "20"
+
+# The k6 load generator runs in-cluster, so the Service spreads its traffic
+# across canary and stable pods (a port-forward would pin it to one pod).
+networkPolicy:
+  extraIngressNamespaces:
+    - load-test

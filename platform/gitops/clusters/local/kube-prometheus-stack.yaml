@@ -1,0 +1,28 @@
+# kind-sized overrides, layered over
+# platform/observability/values/kube-prometheus-stack.yaml.
+prometheus:
+  prometheusSpec:
+    retention: 2d
+    retentionSize: ""
+    storageSpec: {}
+    resources:
+      requests:
+        cpu: 100m
+        memory: 512Mi
+      limits:
+        memory: 1Gi
+alertmanager:
+  alertmanagerSpec:
+    resources:
+      requests:
+        cpu: 10m
+        memory: 32Mi
+grafana:
+  resources:
+    requests:
+      cpu: 50m
+      memory: 128Mi
+# node-exporter needs host mounts that Docker Desktop's VM does not provide
+# the way a real node does.
+nodeExporter:
+  enabled: false

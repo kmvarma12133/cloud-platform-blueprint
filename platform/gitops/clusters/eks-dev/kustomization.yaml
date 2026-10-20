@@ -1,0 +1,54 @@
+# EKS dev cluster (cpb-dev). This cluster's root Application points here.
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+resources:
+  - ../../apps
+  - ../../aws
+patches:
+  # Only the dev element of the orders-api list generator.
+  - target:
+      kind: ApplicationSet
+      name: orders-api
+    patch: |-
+      - op: add
+        path: /spec/generators/0/selector
+        value:
+          matchLabels:
+            env: dev
+  - target:
+      kind: Application
+      name: karpenter
+    patch: |-
+      - op: replace
+        path: /spec/source/helm/valuesObject/settings
+        value:
+          clusterName: cpb-dev
+          interruptionQueue: cpb-dev-karpenter
+  - target:
+      kind: Application
+      name: karpenter-nodepools
+    patch: |-
+      - op: replace
+        path: /spec/source/path
+        value: platform/karpenter/overlays/dev
+  - target:
+      kind: Application
+      name: platform-policies
+    patch: |-
+      - op: replace
+        path: /spec/source/path
+        value: platform/policies/gatekeeper/constraints/dev
+  - target:
+      kind: Application
+      name: platform-gateway
+    patch: |-
+      - op: replace
+        path: /spec/source/path
+        value: platform/gateway/overlays/dev
+  - target:
+      kind: Application
+      name: kubecost
+    patch: |-
+      - op: replace
+        path: /spec/source/helm/valuesObject/kubecostProductConfigs/clusterName
+        value: cpb-dev

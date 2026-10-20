@@ -9,10 +9,11 @@ from __future__ import annotations
 
 import logging
 import os
+import random
 import time
 import uuid
 
-from fastapi import FastAPI, HTTPException, Request, Response
+from fastapi import Depends, FastAPI, HTTPException, Request, Response
 from prometheus_client import CONTENT_TYPE_LATEST, Counter, Histogram, generate_latest
 from pydantic import BaseModel, Field
 
@@ -21,10 +22,26 @@ from .telemetry import configure_logging, configure_tracing
 SERVICE_NAME = os.getenv("SERVICE_NAME", "orders-api")
 SERVICE_VERSION = os.getenv("SERVICE_VERSION", "0.0.0-dev")
 
+# Fault injection for the canary rollback demo: scripts/break-canary.sh builds an
+# image with this set. Zero by default. Probes and /metrics are exempt, so a
+# faulty pod stays Ready and the failure shows up only in the RED metrics, which
+# is exactly what the canary analysis has to catch.
+FAULT_ERROR_RATE = float(os.getenv("FAULT_ERROR_RATE", "0"))
+_FAULT_EXEMPT = {"/healthz", "/readyz", "/metrics"}
+
+
+def inject_faults(request: Request) -> None:
+    # A dependency rather than middleware so it runs after routing and the
+    # resulting 500s are still labelled with the real route template.
+    if FAULT_ERROR_RATE > 0 and request.url.path not in _FAULT_EXEMPT:
+        if random.random() < FAULT_ERROR_RATE:  # noqa: S311 - not used for crypto
+            raise HTTPException(status_code=500, detail="injected fault")
+
+
 configure_logging()
 log = logging.getLogger(SERVICE_NAME)
 
-app = FastAPI(title=SERVICE_NAME, version=SERVICE_VERSION)
+app = FastAPI(title=SERVICE_NAME, version=SERVICE_VERSION, dependencies=[Depends(inject_faults)])
 configure_tracing(app, SERVICE_NAME, SERVICE_VERSION)
 
 # RED metrics. Label cardinality is kept low on purpose: route template, not raw path.

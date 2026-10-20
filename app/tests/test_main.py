@@ -34,3 +34,14 @@ def test_metrics_use_route_template_not_raw_path():
     text = client.get("/metrics").text
     assert 'route="/orders/{order_id}"' in text
     assert "some-random-id" not in text
+
+
+def test_fault_injection_fails_api_calls_but_not_probes(monkeypatch):
+    from orders_api import main
+
+    monkeypatch.setattr(main, "FAULT_ERROR_RATE", 1.0)
+    assert client.get("/orders/anything").status_code == 500
+    assert client.get("/healthz").status_code == 200
+    assert client.get("/readyz").status_code == 200
+    # The 500 is recorded against the route template, so canary analysis sees it.
+    assert 'route="/orders/{order_id}",status="500"' in client.get("/metrics").text

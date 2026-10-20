@@ -1,0 +1,25 @@
+extends: default
+
+ignore: |
+  # Helm templates are Go templates, not YAML, until rendered.
+  platform/charts/*/templates/
+  .venv/
+  .cache/
+  **/.terraform/
+  **/.terragrunt-cache/
+
+rules:
+  document-start: disable
+  # Long PromQL expressions and URLs read better unwrapped.
+  line-length:
+    max: 180
+    level: warning
+  comments:
+    min-spaces-from-content: 1
+  # GitHub Actions uses a bare `on:` key.
+  truthy:
+    allowed-values: ["true", "false", "on"]
+    check-keys: false
+  indentation:
+    spaces: 2
+    indent-sequences: consistent

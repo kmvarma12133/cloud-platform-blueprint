@@ -42,42 +42,128 @@ resource "aws_iam_role" "karpenter_controller" {
   tags               = var.tags
 }
 
+locals {
+  # EC2 ARN prefix for this region. The controller policy below follows the
+  # upstream Karpenter reference policy: scoped to resource types plus tag
+  # conditions, so it can only create and delete capacity it tagged itself.
+  ec2_arn       = "arn:${local.partition}:ec2:${data.aws_region.current.name}"
+  owned_tag_key = "kubernetes.io/cluster/${var.cluster_name}"
+}
+
 data "aws_iam_policy_document" "karpenter_controller" {
+  # AMIs, snapshots, subnets and SGs are shared inputs to a launch, not things
+  # Karpenter creates, so they carry no tag condition.
   statement {
-    sid = "ProvisionCapacity"
-    actions = [
-      "ec2:CreateFleet",
-      "ec2:CreateLaunchTemplate",
-      "ec2:CreateTags",
-      "ec2:RunInstances",
+    sid     = "LaunchWithSharedResources"
+    actions = ["ec2:RunInstances", "ec2:CreateFleet"]
+    resources = [
+      "${local.ec2_arn}::image/*",
+      "${local.ec2_arn}::snapshot/*",
+      "${local.ec2_arn}:*:security-group/*",
+      "${local.ec2_arn}:*:subnet/*",
+      "${local.ec2_arn}:*:capacity-reservation/*",
     ]
-    resources = ["*"]
-    condition {
-      test     = "StringEquals"
-      variable = "aws:RequestTag/kubernetes.io/cluster/${var.cluster_name}"
-      values   = ["owned"]
-    }
   }
 
+  # Launch templates must already belong to this cluster and a NodePool.
   statement {
-    sid       = "UseSharedResources"
+    sid       = "LaunchWithOwnedTemplates"
     actions   = ["ec2:RunInstances", "ec2:CreateFleet"]
-    resources = ["*"]
-  }
-
-  statement {
-    sid       = "TerminateOwnedInstances"
-    actions   = ["ec2:TerminateInstances", "ec2:DeleteLaunchTemplate"]
-    resources = ["*"]
+    resources = ["${local.ec2_arn}:*:launch-template/*"]
     condition {
       test     = "StringEquals"
-      variable = "aws:ResourceTag/kubernetes.io/cluster/${var.cluster_name}"
+      variable = "aws:ResourceTag/${local.owned_tag_key}"
       values   = ["owned"]
+    }
+    condition {
+      test     = "StringLike"
+      variable = "aws:ResourceTag/karpenter.sh/nodepool"
+      values   = ["*"]
+    }
+  }
+
+  # Anything Karpenter creates must be tagged as owned by this cluster at creation.
+  statement {
+    sid     = "CreateTaggedCapacity"
+    actions = ["ec2:RunInstances", "ec2:CreateFleet", "ec2:CreateLaunchTemplate"]
+    resources = [
+      "${local.ec2_arn}:*:fleet/*",
+      "${local.ec2_arn}:*:instance/*",
+      "${local.ec2_arn}:*:volume/*",
+      "${local.ec2_arn}:*:network-interface/*",
+      "${local.ec2_arn}:*:launch-template/*",
+      "${local.ec2_arn}:*:spot-instances-request/*",
+    ]
+    condition {
+      test     = "StringEquals"
+      variable = "aws:RequestTag/${local.owned_tag_key}"
+      values   = ["owned"]
+    }
+    condition {
+      test     = "StringLike"
+      variable = "aws:RequestTag/karpenter.sh/nodepool"
+      values   = ["*"]
     }
   }
 
   statement {
-    sid = "ReadOnly"
+    sid     = "TagOnCreate"
+    actions = ["ec2:CreateTags"]
+    resources = [
+      "${local.ec2_arn}:*:fleet/*",
+      "${local.ec2_arn}:*:instance/*",
+      "${local.ec2_arn}:*:volume/*",
+      "${local.ec2_arn}:*:network-interface/*",
+      "${local.ec2_arn}:*:launch-template/*",
+      "${local.ec2_arn}:*:spot-instances-request/*",
+    ]
+    condition {
+      test     = "StringEquals"
+      variable = "aws:RequestTag/${local.owned_tag_key}"
+      values   = ["owned"]
+    }
+    condition {
+      test     = "StringEquals"
+      variable = "ec2:CreateAction"
+      values   = ["RunInstances", "CreateFleet", "CreateLaunchTemplate"]
+    }
+  }
+
+  # After launch Karpenter only adds its NodeClaim name and the Name tag.
+  statement {
+    sid       = "TagOwnedInstances"
+    actions   = ["ec2:CreateTags"]
+    resources = ["${local.ec2_arn}:*:instance/*"]
+    condition {
+      test     = "StringEquals"
+      variable = "aws:ResourceTag/${local.owned_tag_key}"
+      values   = ["owned"]
+    }
+    condition {
+      test     = "ForAllValues:StringEquals"
+      variable = "aws:TagKeys"
+      values   = ["eks:eks-cluster-name", "karpenter.sh/nodeclaim", "Name"]
+    }
+  }
+
+  statement {
+    sid     = "DeleteOwnedCapacity"
+    actions = ["ec2:TerminateInstances", "ec2:DeleteLaunchTemplate"]
+    resources = [
+      "${local.ec2_arn}:*:instance/*",
+      "${local.ec2_arn}:*:launch-template/*",
+    ]
+    condition {
+      test     = "StringEquals"
+      variable = "aws:ResourceTag/${local.owned_tag_key}"
+      values   = ["owned"]
+    }
+  }
+
+  # EC2 Describe calls do not support resource-level permissions; pinning the
+  # region is the tightest scope available.
+  statement {
+    sid = "RegionalReadOnly"
     actions = [
       "ec2:DescribeAvailabilityZones",
       "ec2:DescribeImages",
@@ -88,17 +174,43 @@ data "aws_iam_policy_document" "karpenter_controller" {
       "ec2:DescribeSecurityGroups",
       "ec2:DescribeSpotPriceHistory",
       "ec2:DescribeSubnets",
-      "pricing:GetProducts",
-      "ssm:GetParameter",
-      "eks:DescribeCluster",
     ]
     resources = ["*"]
+    condition {
+      test     = "StringEquals"
+      variable = "aws:RequestedRegion"
+      values   = [data.aws_region.current.name]
+    }
+  }
+
+  # Public AMI parameters, e.g. the latest Bottlerocket image ID.
+  statement {
+    sid       = "ResolveAmiParameters"
+    actions   = ["ssm:GetParameter"]
+    resources = ["arn:${local.partition}:ssm:${data.aws_region.current.name}::parameter/aws/service/*"]
+  }
+
+  statement {
+    sid       = "PricingForSpotDecisions"
+    actions   = ["pricing:GetProducts"]
+    resources = ["*"]
+  }
+
+  statement {
+    sid       = "DiscoverApiEndpoint"
+    actions   = ["eks:DescribeCluster"]
+    resources = [aws_eks_cluster.this.arn]
   }
 
   statement {
     sid       = "PassNodeRole"
     actions   = ["iam:PassRole"]
     resources = [aws_iam_role.karpenter_node.arn]
+    condition {
+      test     = "StringEquals"
+      variable = "iam:PassedToService"
+      values   = ["ec2.amazonaws.com"]
+    }
   }
 
   statement {

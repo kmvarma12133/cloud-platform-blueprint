@@ -8,10 +8,50 @@ locals {
 
 # --- Secrets encryption ------------------------------------------------------
 
+# One CMK covers Kubernetes secrets envelope encryption and the control-plane
+# log group. EKS uses it through the cluster role (via grants); CloudWatch Logs
+# needs an explicit service statement scoped to this cluster's log group.
+data "aws_iam_policy_document" "eks_kms" {
+  #checkov:skip=CKV_AWS_109:In a key policy "*" means this key only; the account root statement is the AWS default that delegates access to IAM.
+  #checkov:skip=CKV_AWS_111:Same as above: key policies cannot name the key ARN they are attached to.
+  #checkov:skip=CKV_AWS_356:Same as above.
+  statement {
+    sid       = "AccountAdmin"
+    actions   = ["kms:*"]
+    resources = ["*"]
+    principals {
+      type        = "AWS"
+      identifiers = ["arn:${local.partition}:iam::${data.aws_caller_identity.current.account_id}:root"]
+    }
+  }
+
+  statement {
+    sid = "CloudWatchLogs"
+    actions = [
+      "kms:Encrypt*",
+      "kms:Decrypt*",
+      "kms:ReEncrypt*",
+      "kms:GenerateDataKey*",
+      "kms:Describe*",
+    ]
+    resources = ["*"]
+    principals {
+      type        = "Service"
+      identifiers = ["logs.${data.aws_region.current.name}.amazonaws.com"]
+    }
+    condition {
+      test     = "ArnEquals"
+      variable = "kms:EncryptionContext:aws:logs:arn"
+      values   = ["arn:${local.partition}:logs:${data.aws_region.current.name}:${data.aws_caller_identity.current.account_id}:log-group:/aws/eks/${var.cluster_name}/cluster"]
+    }
+  }
+}
+
 resource "aws_kms_key" "eks" {
-  description             = "${var.cluster_name} Kubernetes secrets envelope encryption"
+  description             = "${var.cluster_name} secrets and control-plane log encryption"
   deletion_window_in_days = 14
   enable_key_rotation     = true
+  policy                  = data.aws_iam_policy_document.eks_kms.json
   tags                    = var.tags
 }
 
@@ -43,9 +83,30 @@ resource "aws_iam_role_policy_attachment" "cluster" {
   policy_arn = "arn:${local.partition}:iam::aws:policy/AmazonEKSClusterPolicy"
 }
 
+# AmazonEKSClusterPolicy has no KMS rights; without this the cluster cannot
+# use the CMK for secrets encryption and creation fails.
+data "aws_iam_policy_document" "cluster_encryption" {
+  statement {
+    actions = [
+      "kms:Encrypt",
+      "kms:Decrypt",
+      "kms:ListGrants",
+      "kms:DescribeKey",
+    ]
+    resources = [aws_kms_key.eks.arn]
+  }
+}
+
+resource "aws_iam_role_policy" "cluster_encryption" {
+  name   = "secrets-encryption"
+  role   = aws_iam_role.cluster.id
+  policy = data.aws_iam_policy_document.cluster_encryption.json
+}
+
 resource "aws_cloudwatch_log_group" "cluster" {
   name              = "/aws/eks/${var.cluster_name}/cluster"
   retention_in_days = var.log_retention_days
+  kms_key_id        = aws_kms_key.eks.arn
   tags              = var.tags
 }
 
@@ -91,6 +152,7 @@ resource "aws_eks_cluster" "this" {
 
   depends_on = [
     aws_iam_role_policy_attachment.cluster,
+    aws_iam_role_policy.cluster_encryption,
     aws_cloudwatch_log_group.cluster,
   ]
 }

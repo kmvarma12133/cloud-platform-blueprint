@@ -55,9 +55,9 @@ variable "admin_role_arns" {
 }
 
 variable "log_retention_days" {
-  description = "Retention for control-plane logs."
+  description = "Retention for control-plane logs. Defaults to a year for audit; dev overrides it lower to save cost."
   type        = number
-  default     = 30
+  default     = 365
 }
 
 variable "tags" {

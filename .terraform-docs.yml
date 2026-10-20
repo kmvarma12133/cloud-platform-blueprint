@@ -1,0 +1,28 @@
+# Regenerate with: make docs   (or: terraform-docs -c .terraform-docs.yml <module-dir>)
+# Only the block between the BEGIN/END markers is generated; the prose above it
+# in each README is hand-written. CI fails if the generated block is stale.
+formatter: markdown table
+
+output:
+  file: README.md
+  mode: inject
+  template: |-
+    <!-- BEGIN_TF_DOCS -->
+    {{ .Content }}
+    <!-- END_TF_DOCS -->
+
+sort:
+  enabled: true
+  by: required
+
+settings:
+  anchor: false
+  default: true
+  escape: false
+  hide-empty: true
+  html: false
+  indent: 2
+  lockfile: false
+  required: true
+  sensitive: true
+  type: true

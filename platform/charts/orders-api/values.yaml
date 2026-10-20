@@ -1,0 +1,90 @@
+# Defaults shared by every environment. values-<env>.yaml overrides them.
+
+image:
+  repository: ghcr.io/OWNER/orders-api
+  # Set per environment. CI writes the commit SHA into values-dev.yaml and the
+  # promote-prod workflow writes it into values-prod.yaml.
+  tag: ""
+  pullPolicy: IfNotPresent
+
+# Team that owns the service; required by the Gatekeeper label policy.
+owner: team-orders
+
+environment: dev
+logLevel: INFO
+
+# Used only when autoscaling is disabled. With KEDA on, the generated HPA owns
+# spec.replicas and it is left out of the manifest so Argo CD does not fight it.
+replicaCount: 2
+
+service:
+  port: 80
+
+containerPort: 8080
+
+otel:
+  enabled: true
+  # OTLP/HTTP endpoint of the collector deployed by platform/gitops.
+  endpoint: http://otel-collector.observability:4318
+
+resources:
+  requests:
+    cpu: 100m
+    memory: 128Mi
+  limits:
+    cpu: 500m
+    memory: 256Mi
+
+prometheus:
+  # In-cluster Prometheus used by the canary analysis and the KEDA trigger.
+  address: http://kube-prometheus-stack-prometheus.monitoring:9090
+
+rollout:
+  # Canary steps are fixed in the template: 10% -> pause -> 30% -> analysis ->
+  # 60% -> analysis -> 100%. With no traffic router the split is by replica count.
+  firstPause: 2m
+  analysis:
+    # The canary passes only if its own pods (selected by pod-template hash)
+    # meet both thresholds on every measurement but at most failureLimit.
+    successRate: 0.99
+    latencyP95Seconds: 0.3
+    interval: 30s
+    count: 4
+    failureLimit: 1
+
+autoscaling:
+  enabled: true
+  minReplicas: 2
+  maxReplicas: 20
+  # Target requests per second per replica.
+  rpsPerReplica: "50"
+  pollingInterval: 15
+  cooldownPeriod: 300
+
+pdb:
+  maxUnavailable: 1
+
+networkPolicy:
+  enabled: true
+  # Namespaces allowed to reach the pods. Everything else is denied.
+  ingressNamespace: envoy-gateway-system
+  monitoringNamespace: monitoring
+  extraIngressNamespaces: []
+
+serviceMonitor:
+  enabled: true
+  interval: 15s
+
+httpRoute:
+  enabled: false
+  hostnames: []
+  gateway:
+    name: public
+    namespace: envoy-gateway-system
+
+topologySpread:
+  # ScheduleAnyway keeps single-zone clusters (kind) schedulable; spread is
+  # still preferred across zones and nodes.
+  whenUnsatisfiable: ScheduleAnyway
+
+podAnnotations: {}

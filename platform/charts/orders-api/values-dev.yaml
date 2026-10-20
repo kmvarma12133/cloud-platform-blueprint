@@ -1,0 +1,15 @@
+# dev: Argo CD syncs this automatically. CI rewrites image.tag on every merge to main.
+image:
+  tag: "0.1.0"
+
+environment: dev
+logLevel: DEBUG
+
+autoscaling:
+  minReplicas: 2
+  maxReplicas: 6
+
+httpRoute:
+  enabled: true
+  hostnames:
+    - orders.dev.example.com

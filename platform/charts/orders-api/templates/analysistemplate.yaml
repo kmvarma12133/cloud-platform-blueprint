@@ -1,0 +1,46 @@
+{{- $a := .Values.rollout.analysis -}}
+apiVersion: argoproj.io/v1alpha1
+kind: AnalysisTemplate
+metadata:
+  name: {{ include "orders-api.fullname" . }}-slo
+  labels:
+    {{- include "orders-api.labels" . | nindent 4 }}
+spec:
+  args:
+    - name: namespace
+    - name: service
+    - name: canary-hash
+  # Both metrics read only the canary's pods: the ServiceMonitor copies the
+  # rollouts-pod-template-hash pod label onto every scraped series.
+  #
+  # No traffic is not a failure. If the canary has never been called there are
+  # no series ("or on() vector(...)" supplies a passing value); if it was called
+  # but not in the last minute the ratio is 0/0 = NaN, which isNaN() accepts.
+  # Otherwise an idle environment could never promote. The rollback demo runs
+  # under load, so it always exercises the real thresholds.
+  metrics:
+    - name: success-rate
+      interval: {{ $a.interval }}
+      count: {{ $a.count }}
+      failureLimit: {{ $a.failureLimit }}
+      successCondition: isNaN(result[0]) || result[0] >= {{ $a.successRate }}
+      provider:
+        prometheus:
+          address: {{ .Values.prometheus.address }}
+          query: |
+            sum(rate(http_requests_total{namespace="{{`{{args.namespace}}`}}", service="{{`{{args.service}}`}}", rollouts_pod_template_hash="{{`{{args.canary-hash}}`}}", status!~"5.."}[1m]))
+            /
+            sum(rate(http_requests_total{namespace="{{`{{args.namespace}}`}}", service="{{`{{args.service}}`}}", rollouts_pod_template_hash="{{`{{args.canary-hash}}`}}"}[1m]))
+            or on() vector(1)
+    - name: latency-p95
+      interval: {{ $a.interval }}
+      count: {{ $a.count }}
+      failureLimit: {{ $a.failureLimit }}
+      successCondition: isNaN(result[0]) || result[0] < {{ $a.latencyP95Seconds }}
+      provider:
+        prometheus:
+          address: {{ .Values.prometheus.address }}
+          query: |
+            histogram_quantile(0.95,
+              sum by (le) (rate(http_request_duration_seconds_bucket{namespace="{{`{{args.namespace}}`}}", service="{{`{{args.service}}`}}", rollouts_pod_template_hash="{{`{{args.canary-hash}}`}}"}[1m])))
+            or on() vector(0)

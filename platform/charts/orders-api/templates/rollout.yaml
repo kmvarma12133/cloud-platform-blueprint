@@ -1,0 +1,130 @@
+apiVersion: argoproj.io/v1alpha1
+kind: Rollout
+metadata:
+  name: {{ include "orders-api.fullname" . }}
+  labels:
+    {{- include "orders-api.labels" . | nindent 4 }}
+spec:
+  {{- if not .Values.autoscaling.enabled }}
+  replicas: {{ .Values.replicaCount }}
+  {{- end }}
+  revisionHistoryLimit: 3
+  selector:
+    matchLabels:
+      {{- include "orders-api.selectorLabels" . | nindent 6 }}
+  strategy:
+    canary:
+      # No trafficRouting block: Argo Rollouts splits traffic by scaling the
+      # canary and stable ReplicaSets behind the one Service. Weights are
+      # therefore approximate (rounded to whole pods).
+      canaryMetadata:
+        labels:
+          role: canary
+      stableMetadata:
+        labels:
+          role: stable
+      steps:
+        - setWeight: 10
+        - pause:
+            duration: {{ .Values.rollout.firstPause }}
+        - setWeight: 30
+        - analysis:
+            templates:
+              - templateName: {{ include "orders-api.fullname" . }}-slo
+            args:
+              {{- include "orders-api.analysisArgs" . | nindent 14 }}
+        - setWeight: 60
+        - analysis:
+            templates:
+              - templateName: {{ include "orders-api.fullname" . }}-slo
+            args:
+              {{- include "orders-api.analysisArgs" . | nindent 14 }}
+        - setWeight: 100
+  template:
+    metadata:
+      labels:
+        {{- include "orders-api.labels" . | nindent 8 }}
+      {{- with .Values.podAnnotations }}
+      annotations:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+    spec:
+      serviceAccountName: {{ include "orders-api.fullname" . }}
+      automountServiceAccountToken: false
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 10001
+        runAsGroup: 10001
+        fsGroup: 10001
+        seccompProfile:
+          type: RuntimeDefault
+      topologySpreadConstraints:
+        - maxSkew: 1
+          topologyKey: topology.kubernetes.io/zone
+          whenUnsatisfiable: {{ .Values.topologySpread.whenUnsatisfiable }}
+          labelSelector:
+            matchLabels:
+              {{- include "orders-api.selectorLabels" . | nindent 14 }}
+          # Spread each revision on its own, so a canary is not packed onto one node.
+          matchLabelKeys:
+            - rollouts-pod-template-hash
+        - maxSkew: 1
+          topologyKey: kubernetes.io/hostname
+          whenUnsatisfiable: ScheduleAnyway
+          labelSelector:
+            matchLabels:
+              {{- include "orders-api.selectorLabels" . | nindent 14 }}
+          matchLabelKeys:
+            - rollouts-pod-template-hash
+      containers:
+        - name: orders-api
+          image: {{ include "orders-api.image" . }}
+          imagePullPolicy: {{ .Values.image.pullPolicy }}
+          ports:
+            - name: http
+              containerPort: {{ .Values.containerPort }}
+              protocol: TCP
+          env:
+            - name: SERVICE_VERSION
+              value: {{ .Values.image.tag | quote }}
+            - name: DEPLOY_ENV
+              value: {{ .Values.environment | quote }}
+            - name: LOG_LEVEL
+              value: {{ .Values.logLevel | quote }}
+            {{- if .Values.otel.enabled }}
+            - name: OTEL_EXPORTER_OTLP_ENDPOINT
+              value: {{ .Values.otel.endpoint | quote }}
+            {{- end }}
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities:
+              drop: ["ALL"]
+          resources:
+            {{- toYaml .Values.resources | nindent 12 }}
+          startupProbe:
+            httpGet:
+              path: /healthz
+              port: http
+            periodSeconds: 2
+            failureThreshold: 30
+          livenessProbe:
+            httpGet:
+              path: /healthz
+              port: http
+            periodSeconds: 10
+            failureThreshold: 3
+          readinessProbe:
+            httpGet:
+              path: /readyz
+              port: http
+            periodSeconds: 5
+            failureThreshold: 2
+          volumeMounts:
+            - name: tmp
+              mountPath: /tmp
+      volumes:
+        # The root filesystem is read-only; Python and uvicorn still need a scratch dir.
+        - name: tmp
+          emptyDir:
+            sizeLimit: 64Mi

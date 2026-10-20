@@ -1,0 +1,127 @@
+{
+  "$schema": "https://json-schema.org/draft-07/schema#",
+  "title": "orders-api chart values",
+  "type": "object",
+  "required": ["image", "owner", "environment", "resources", "rollout", "autoscaling"],
+  "properties": {
+    "image": {
+      "type": "object",
+      "required": ["repository", "tag"],
+      "properties": {
+        "repository": { "type": "string", "minLength": 1 },
+        "tag": {
+          "type": "string",
+          "description": "Immutable tag (commit SHA or semver). 'latest' is rejected here and by Gatekeeper.",
+          "not": { "enum": ["latest"] }
+        },
+        "pullPolicy": { "enum": ["Always", "IfNotPresent", "Never"] }
+      }
+    },
+    "owner": { "type": "string", "pattern": "^[a-z0-9-]+$" },
+    "environment": { "enum": ["dev", "prod"] },
+    "logLevel": { "enum": ["DEBUG", "INFO", "WARNING", "ERROR"] },
+    "replicaCount": { "type": "integer", "minimum": 1 },
+    "containerPort": { "type": "integer" },
+    "service": {
+      "type": "object",
+      "properties": { "port": { "type": "integer" } }
+    },
+    "otel": {
+      "type": "object",
+      "properties": {
+        "enabled": { "type": "boolean" },
+        "endpoint": { "type": "string", "format": "uri" }
+      }
+    },
+    "resources": {
+      "type": "object",
+      "required": ["requests", "limits"],
+      "properties": {
+        "requests": { "$ref": "#/definitions/cpuMemory" },
+        "limits": { "$ref": "#/definitions/cpuMemory" }
+      }
+    },
+    "prometheus": {
+      "type": "object",
+      "properties": { "address": { "type": "string", "format": "uri" } }
+    },
+    "rollout": {
+      "type": "object",
+      "properties": {
+        "firstPause": { "$ref": "#/definitions/duration" },
+        "analysis": {
+          "type": "object",
+          "properties": {
+            "successRate": { "type": "number", "exclusiveMinimum": 0, "maximum": 1 },
+            "latencyP95Seconds": { "type": "number", "exclusiveMinimum": 0 },
+            "interval": { "$ref": "#/definitions/duration" },
+            "count": { "type": "integer", "minimum": 1 },
+            "failureLimit": { "type": "integer", "minimum": 0 }
+          }
+        }
+      }
+    },
+    "autoscaling": {
+      "type": "object",
+      "required": ["enabled", "minReplicas", "maxReplicas"],
+      "properties": {
+        "enabled": { "type": "boolean" },
+        "minReplicas": { "type": "integer", "minimum": 2, "description": "At least 2, so a PDB with maxUnavailable 1 still leaves one pod serving." },
+        "maxReplicas": { "type": "integer", "maximum": 50 },
+        "rpsPerReplica": { "type": "string", "pattern": "^[0-9]+$" },
+        "pollingInterval": { "type": "integer", "minimum": 5 },
+        "cooldownPeriod": { "type": "integer", "minimum": 30 }
+      }
+    },
+    "pdb": {
+      "type": "object",
+      "properties": { "maxUnavailable": { "type": ["integer", "string"] } }
+    },
+    "networkPolicy": {
+      "type": "object",
+      "properties": {
+        "enabled": { "type": "boolean" },
+        "ingressNamespace": { "type": "string" },
+        "monitoringNamespace": { "type": "string" },
+        "extraIngressNamespaces": { "type": "array", "items": { "type": "string" } }
+      }
+    },
+    "serviceMonitor": {
+      "type": "object",
+      "properties": {
+        "enabled": { "type": "boolean" },
+        "interval": { "$ref": "#/definitions/duration" }
+      }
+    },
+    "httpRoute": {
+      "type": "object",
+      "properties": {
+        "enabled": { "type": "boolean" },
+        "hostnames": { "type": "array", "items": { "type": "string" } },
+        "gateway": {
+          "type": "object",
+          "properties": {
+            "name": { "type": "string" },
+            "namespace": { "type": "string" }
+          }
+        }
+      }
+    },
+    "topologySpread": {
+      "type": "object",
+      "properties": { "whenUnsatisfiable": { "enum": ["DoNotSchedule", "ScheduleAnyway"] } }
+    },
+    "podAnnotations": { "type": "object" }
+  },
+  "definitions": {
+    "duration": { "type": "string", "pattern": "^[0-9]+(ms|s|m|h)$" },
+    "cpuMemory": {
+      "type": "object",
+      "required": ["cpu", "memory"],
+      "properties": {
+        "cpu": { "type": ["string", "number"] },
+        "memory": { "type": "string" }
+      }
+    }
+  }
+}

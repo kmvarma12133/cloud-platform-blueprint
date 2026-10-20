@@ -1,0 +1,27 @@
+{{- if .Values.autoscaling.enabled }}
+{{- $as := .Values.autoscaling -}}
+apiVersion: keda.sh/v1alpha1
+kind: ScaledObject
+metadata:
+  name: {{ include "orders-api.fullname" . }}
+  labels:
+    {{- include "orders-api.labels" . | nindent 4 }}
+spec:
+  # KEDA creates and owns the HPA. Scaling the Rollout (not a ReplicaSet) keeps
+  # the canary/stable ratio intact while the total grows or shrinks.
+  scaleTargetRef:
+    apiVersion: argoproj.io/v1alpha1
+    kind: Rollout
+    name: {{ include "orders-api.fullname" . }}
+  minReplicaCount: {{ $as.minReplicas }}
+  maxReplicaCount: {{ $as.maxReplicas }}
+  pollingInterval: {{ $as.pollingInterval }}
+  cooldownPeriod: {{ $as.cooldownPeriod }}
+  triggers:
+    - type: prometheus
+      metadata:
+        serverAddress: {{ .Values.prometheus.address }}
+        # Total RPS across all pods; KEDA divides by threshold to get replicas.
+        query: sum(rate(http_requests_total{namespace="{{ .Release.Namespace }}", service="{{ include "orders-api.fullname" . }}"}[1m]))
+        threshold: {{ $as.rpsPerReplica | quote }}
+{{- end }}

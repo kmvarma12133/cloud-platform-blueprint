@@ -1,0 +1,10 @@
+apiVersion: v2
+name: orders-api
+description: orders-api delivered as an Argo Rollouts canary with Prometheus analysis and KEDA scaling.
+type: application
+version: 0.1.0
+appVersion: "0.1.0"
+kubeVersion: ">=1.30.0-0"
+maintainers:
+  - name: Manideep Karukuri
+    email: manideepkarukoori@gmail.com

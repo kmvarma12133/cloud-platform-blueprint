@@ -1,0 +1,45 @@
+apiVersion: constraints.gatekeeper.sh/v1beta1
+kind: K8sAllowedRegistries
+metadata:
+  name: allowed-registries
+  annotations:
+    # The Constraint CRD only exists once Gatekeeper has processed the template.
+    argocd.argoproj.io/sync-wave: "1"
+    argocd.argoproj.io/sync-options: SkipDryRunOnMissingResource=true
+spec:
+  # Overridden per environment: dryrun in dev, deny in prod.
+  enforcementAction: deny
+  match:
+    kinds:
+      - apiGroups: [""]
+        kinds: ["Pod"]
+      - apiGroups: ["apps"]
+        kinds: ["Deployment", "StatefulSet", "DaemonSet", "ReplicaSet"]
+      - apiGroups: ["batch"]
+        kinds: ["Job", "CronJob"]
+      - apiGroups: ["argoproj.io"]
+        kinds: ["Rollout"]
+    # Platform components are pinned and reviewed upstream charts; policies
+    # target application namespaces.
+    excludedNamespaces:
+      - kube-system
+      - kube-public
+      - kube-node-lease
+      - local-path-storage
+      - argocd
+      - argo-rollouts
+      - cert-manager
+      - envoy-gateway-system
+      - external-secrets
+      - gatekeeper-system
+      - karpenter
+      - keda
+      - kubecost
+      - monitoring
+      - observability
+  parameters:
+    registries:
+      # Any account's private ECR, any ACR, and this organisation's GHCR namespace.
+      - '^[0-9]{12}\.dkr\.ecr\.[a-z0-9-]+\.amazonaws\.com/'
+      - '^[a-z0-9]+\.azurecr\.io/'
+      - '^ghcr\.io/OWNER/'

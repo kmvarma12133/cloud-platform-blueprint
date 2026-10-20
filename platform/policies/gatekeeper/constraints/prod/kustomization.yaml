@@ -1,0 +1,14 @@
+# prod: enforcementAction=deny
+# Non-compliant workloads are rejected at admission.
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+resources:
+  - ../base
+  - ../../templates
+patches:
+  - target:
+      group: constraints.gatekeeper.sh
+    patch: |-
+      - op: replace
+        path: /spec/enforcementAction
+        value: deny

@@ -1,0 +1,15 @@
+# dev: enforcementAction=dryrun
+# Violations are reported by the audit (kubectl get constraints) but nothing is
+# blocked, so teams can fix them before the same policy denies in prod.
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+resources:
+  - ../base
+  - ../../templates
+patches:
+  - target:
+      group: constraints.gatekeeper.sh
+    patch: |-
+      - op: replace
+        path: /spec/enforcementAction
+        value: dryrun

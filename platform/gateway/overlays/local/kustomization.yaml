@@ -1,0 +1,5 @@
+# kind has no public DNS or load balancer, so plain HTTP only.
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+resources:
+  - ../../base

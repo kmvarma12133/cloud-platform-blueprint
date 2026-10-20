@@ -1,0 +1,32 @@
+# Shared by dev and prod: adds TLS. Each environment sets its own hostname.
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+resources:
+  - ../../base
+  - clusterissuer.yaml
+patches:
+  - target:
+      kind: Gateway
+      name: public
+    patch: |-
+      - op: add
+        path: /metadata/annotations
+        value:
+          cert-manager.io/cluster-issuer: letsencrypt
+      - op: add
+        path: /spec/listeners/-
+        value:
+          name: https
+          protocol: HTTPS
+          port: 443
+          hostname: HOSTNAME
+          tls:
+            mode: Terminate
+            certificateRefs:
+              - name: public-gateway-tls
+          allowedRoutes:
+            namespaces:
+              from: Selector
+              selector:
+                matchLabels:
+                  platform.cpb.io/gateway: public

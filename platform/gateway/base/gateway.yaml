@@ -1,0 +1,21 @@
+# The cluster's single public entry point. Envoy Gateway turns it into an
+# Envoy deployment plus a LoadBalancer Service in this namespace.
+apiVersion: gateway.networking.k8s.io/v1
+kind: Gateway
+metadata:
+  name: public
+  namespace: envoy-gateway-system
+spec:
+  gatewayClassName: envoy
+  listeners:
+    - name: http
+      protocol: HTTP
+      port: 80
+      # Only namespaces that opt in (the orders-api ApplicationSet labels its
+      # namespaces) can attach routes, so a stray HTTPRoute cannot publish a service.
+      allowedRoutes:
+        namespaces:
+          from: Selector
+          selector:
+            matchLabels:
+              platform.cpb.io/gateway: public

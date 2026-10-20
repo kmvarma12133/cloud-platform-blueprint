@@ -27,12 +27,17 @@ jobs:
       pull-requests: write # open the PR
       packages: read # read signatures if the GHCR package is private
     env:
-      IMAGE: ghcr.io/${{ github.repository_owner }}/orders-api
       TAG: ${{ inputs.image-tag }}
       # Only signatures made by app-ci on main are accepted.
       SIGNER: https://github.com/${{ github.repository }}/.github/workflows/app-ci.yml@refs/heads/main
       ISSUER: https://token.actions.githubusercontent.com
     steps:
+      # GHCR paths must be lowercase; github.repository_owner keeps the account's case.
+      - name: Image name
+        run: echo "IMAGE=ghcr.io/${OWNER,,}/orders-api" >> "$GITHUB_ENV"
+        env:
+          OWNER: ${{ github.repository_owner }}
+
       # Inputs are untrusted text: validate before using them anywhere.
       - name: Validate input
         run: |

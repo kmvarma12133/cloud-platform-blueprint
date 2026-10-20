@@ -2,6 +2,10 @@
 # platform/gitops/clusters/local. scripts/local-up.sh builds the images and
 # loads them straight into kind, so nothing is pulled.
 image:
+  # Built by local-up.sh and loaded into kind; "localhost/" is the conventional
+  # prefix for images that exist only locally. (The dev Gatekeeper constraints
+  # run in dryrun, so the registry rule only records an audit finding.)
+  repository: localhost/orders-api
   tag: local-v1
   pullPolicy: Never
 

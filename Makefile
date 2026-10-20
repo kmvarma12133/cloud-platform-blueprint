@@ -8,7 +8,7 @@ MAKEFLAGS += --no-print-directory
 PYTHON ?= python3
 # Interpreter with app/requirements-dev.txt installed (defaults to PYTHON).
 APP_PYTHON ?= $(PYTHON)
-IMAGE ?= ghcr.io/OWNER/orders-api
+IMAGE ?= localhost/orders-api
 TAG ?= $(shell git rev-parse --short HEAD)
 TF_DIRS := $(wildcard infra/modules/*) infra/bootstrap
 

@@ -22,9 +22,6 @@ concurrency:
   # Superseded PR runs are cancelled; main runs queue so a publish is never cut short.
   cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
-env:
-  IMAGE: ghcr.io/${{ github.repository_owner }}/orders-api
-
 jobs:
   test:
     runs-on: ubuntu-24.04
@@ -60,6 +57,11 @@ jobs:
     permissions:
       contents: read
     steps:
+      # GHCR paths must be lowercase; github.repository_owner keeps the account's case.
+      - name: Image name
+        run: echo "IMAGE=ghcr.io/${OWNER,,}/orders-api" >> "$GITHUB_ENV"
+        env:
+          OWNER: ${{ github.repository_owner }}
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
@@ -90,6 +92,11 @@ jobs:
       contents: read
       security-events: write # upload SARIF to code scanning
     steps:
+      # GHCR paths must be lowercase; github.repository_owner keeps the account's case.
+      - name: Image name
+        run: echo "IMAGE=ghcr.io/${OWNER,,}/orders-api" >> "$GITHUB_ENV"
+        env:
+          OWNER: ${{ github.repository_owner }}
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
@@ -148,6 +155,11 @@ jobs:
     outputs:
       digest: ${{ steps.push.outputs.digest }}
     steps:
+      # GHCR paths must be lowercase; github.repository_owner keeps the account's case.
+      - name: Image name
+        run: echo "IMAGE=ghcr.io/${OWNER,,}/orders-api" >> "$GITHUB_ENV"
+        env:
+          OWNER: ${{ github.repository_owner }}
       - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
         with:
           name: image

@@ -18,7 +18,7 @@ source "$ROOT/scripts/lib.sh"
 
 GITHUB_REPO_URL="https://github.com/OWNER/cloud-platform-blueprint.git"
 REPO_URL="${REPO_URL:-$GITHUB_REPO_URL}"
-IMAGE="ghcr.io/OWNER/orders-api"
+IMAGE="localhost/orders-api" # matches values-local.yaml
 
 need docker kind kubectl git
 docker info >/dev/null 2>&1 || die "Docker is not running"

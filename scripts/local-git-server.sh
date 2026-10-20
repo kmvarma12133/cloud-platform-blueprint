@@ -14,13 +14,16 @@ ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 source "$ROOT/scripts/lib.sh"
 
 LOCAL_URL="http://git-server.git-server.svc/cloud-platform-blueprint.git"
-IMAGE="cpb-local-git:$(git -C "$ROOT" rev-parse --short HEAD)"
+# Resolve HEAD once, so a commit made while this runs cannot split the packaging.
+REV="$(git -C "$ROOT" rev-parse HEAD)"
+IMAGE="cpb-local-git:${REV:0:12}"
 work="$(mktemp -d)"
 trap 'rm -rf "$work"' EXIT
 
-log "Packaging HEAD ($(git -C "$ROOT" rev-parse --short HEAD)) for the in-cluster git server"
+log "Packaging ${REV:0:7} for the in-cluster git server"
 git clone --quiet --no-local "$ROOT" "$work/src"
-git -C "$work/src" checkout --quiet -B main "$(git -C "$ROOT" rev-parse HEAD)"
+git -C "$work/src" fetch --quiet "$ROOT" "$REV"
+git -C "$work/src" checkout --quiet -B main "$REV"
 grep -rlE 'https://github\.com/[^/]+/cloud-platform-blueprint\.git' "$work/src/platform" |
   xargs sed -i -E "s#https://github\.com/[^/]+/cloud-platform-blueprint\.git#$LOCAL_URL#g"
 git -C "$work/src" -c user.name=local-up -c user.email=local-up@localhost \
@@ -36,7 +39,7 @@ EXPOSE 8080
 CMD ["python", "-m", "http.server", "8080", "--directory", "/srv"]
 EOF
 docker build --quiet -t "$IMAGE" "$work" >/dev/null
-kind load docker-image --name "$CLUSTER_NAME" "$IMAGE" >/dev/null
+kind load docker-image --name "$CLUSTER_NAME" "$IMAGE" >/dev/null 2>&1
 
 k apply -f - >/dev/null <<EOF
 apiVersion: v1

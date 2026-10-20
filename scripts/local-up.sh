@@ -47,7 +47,7 @@ docker build --quiet --build-arg VERSION=local-v1 -t "$IMAGE:local-v1" "$ROOT/ap
 docker build --quiet --build-arg VERSION=local-v2 -t "$IMAGE:local-v2" "$ROOT/app" >/dev/null
 printf 'FROM %s\nENV FAULT_ERROR_RATE=0.5 SERVICE_VERSION=local-broken\n' "$IMAGE:local-v1" |
   docker build --quiet -t "$IMAGE:local-broken" - >/dev/null
-kind load docker-image --name "$CLUSTER_NAME" "$IMAGE:local-v1" "$IMAGE:local-v2" "$IMAGE:local-broken" >/dev/null
+kind load docker-image --name "$CLUSTER_NAME" "$IMAGE:local-v1" "$IMAGE:local-v2" "$IMAGE:local-broken" >/dev/null 2>&1
 
 # --- Argo CD -----------------------------------------------------------------
 log "Installing Argo CD v3.5.5"

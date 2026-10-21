@@ -1,6 +1,6 @@
 # dev: Argo CD syncs this automatically. CI rewrites image.tag on every merge to main.
 image:
-  tag: "0.1.0"
+  tag: "d05c07df2a5b7d3292990eaf80d3eb53ecf1df49@sha256:23720a0781e2f4027b617ca212c69a11b974fe716b30418674ed738878fd0692"
 
 environment: dev
 logLevel: DEBUG

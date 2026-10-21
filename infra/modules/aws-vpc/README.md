@@ -30,13 +30,13 @@ Design choices:
 | Name | Version |
 | ---- | ------- |
 | terraform | >= 1.6.0 |
-| aws | ~> 5.70 |
+| aws | ~> 6.69 |
 
 ## Providers
 
 | Name | Version |
 | ---- | ------- |
-| aws | ~> 5.70 |
+| aws | ~> 6.69 |
 
 ## Resources
 

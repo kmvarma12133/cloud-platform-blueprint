@@ -19,6 +19,7 @@ import os
 import shlex
 import subprocess
 import sys
+import time
 from pathlib import Path
 
 import yaml
@@ -34,6 +35,10 @@ CRDS_CATALOG = (
     "https://raw.githubusercontent.com/datreeio/CRDs-catalog/main/"
     "{{.Group}}/{{.ResourceKind}}_{{.ResourceAPIVersion}}.json"
 )
+# Anonymous pulls from public OCI registries (ECR Public in particular) are rate
+# limited per source IP, and shared CI runners hit that regularly.
+RATE_LIMITED = ("429", "toomanyrequests")
+PULL_ATTEMPTS = 4
 
 
 def run(cmd: list[str], **kwargs) -> subprocess.CompletedProcess:
@@ -51,19 +56,47 @@ def applications(cluster: Path) -> list[dict]:
     return [d for d in docs if d["kind"] == "Application"]
 
 
-def helm_command(app: dict, source: dict) -> list[str] | None:
+def oci_ref(source: dict) -> str | None:
+    if not source["repoURL"].startswith("oci://"):
+        return None
+    return source["repoURL"] + (f"/{source['chart']}" if "chart" in source else "")
+
+
+def pull_oci(ref: str, version: str) -> tuple[str | None, str]:
+    """Pull an OCI chart once into the cache, retrying registry rate limits.
+
+    Returns the chart archive path relative to the repo root, or None and the
+    last helm error.
+    """
+    dest = WORK / "charts" / hashlib.sha256(f"{ref}:{version}".encode()).hexdigest()[:10]
+    if cached := sorted(dest.glob("*.tgz")):
+        return cached[0].relative_to(ROOT).as_posix(), ""
+    dest.mkdir(parents=True, exist_ok=True)
+    for attempt in range(PULL_ATTEMPTS):
+        pulled = run(
+            [*HELM, "pull", ref, "--version", version, "--destination", dest.relative_to(ROOT)]
+        )
+        if pulled.returncode == 0:
+            return sorted(dest.glob("*.tgz"))[0].relative_to(ROOT).as_posix(), ""
+        if not any(s in pulled.stderr for s in RATE_LIMITED) or attempt == PULL_ATTEMPTS - 1:
+            return None, pulled.stderr
+        time.sleep(15 * 2**attempt)
+    raise AssertionError("unreachable")
+
+
+def helm_command(app: dict, source: dict, chart_path: str | None = None) -> list[str] | None:
     if "chart" not in source and not source["repoURL"].startswith("oci://"):
         return None  # a Git path, not a chart
     name = app["metadata"]["name"]
     helm = source.get("helm", {})
     namespace = app["spec"]["destination"]["namespace"]
-    if source["repoURL"].startswith("oci://"):
-        ref = source["repoURL"] + (f"/{source['chart']}" if "chart" in source else "")
-        cmd = [*HELM, "template", helm.get("releaseName", name), ref]
+    if chart_path:
+        # Already pulled at the pinned version (see pull_oci).
+        cmd = [*HELM, "template", helm.get("releaseName", name), chart_path]
     else:
         cmd = [*HELM, "template", helm.get("releaseName", name), source["chart"]]
-        cmd += ["--repo", source["repoURL"]]
-    cmd += ["--version", str(source["targetRevision"]), "--namespace", namespace]
+        cmd += ["--repo", source["repoURL"], "--version", str(source["targetRevision"])]
+    cmd += ["--namespace", namespace]
     for vf in helm.get("valueFiles", []):
         cmd += ["--values", vf.replace("$values/", "")]
     if helm.get("valuesObject"):
@@ -86,11 +119,23 @@ def main() -> int:
         for app in applications(cluster):
             sources = app["spec"].get("sources") or [app["spec"]["source"]]
             for source in sources:
-                cmd = helm_command(app, source)
+                label = f"{cluster.name}/{app['metadata']['name']}"
+                chart_path = None
+                if ref := oci_ref(source):
+                    chart_path, error = pull_oci(ref, str(source["targetRevision"]))
+                    if chart_path is None:
+                        if any(s in error for s in RATE_LIMITED):
+                            # The registry refused us, not the chart: report it
+                            # visibly without failing the build.
+                            print(f"::warning::{label}: not rendered, {ref} is rate limited")
+                        else:
+                            print(f"{label:45} helm pull FAILED\n{error}")
+                            failures += 1
+                        continue
+                cmd = helm_command(app, source, chart_path)
                 if cmd is None:
                     continue
                 key = " ".join(cmd)
-                label = f"{cluster.name}/{app['metadata']['name']}"
                 if key in seen:
                     print(f"{label:45} same as {seen[key]}")
                     continue

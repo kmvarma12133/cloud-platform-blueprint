@@ -108,6 +108,19 @@ jobs:
       - run: pip install PyYAML==6.0.3
       # Fails if platform/policies/gatekeeper/templates no longer match the Rego.
       - run: python scripts/build-gatekeeper.py --check
+      # opa test cannot catch templates Gatekeeper itself would reject (it
+      # restricts imports and Rego versions), so load them with gator too.
+      - name: Install gator
+        env:
+          VERSION: v3.23.1 # matches the Gatekeeper chart version
+          SHA256: c268d7b809c9fe59a110ab0bf7c296ab00b0b6c894c209cd15e94194590291bb
+        run: |
+          file="gator-${VERSION}-linux-amd64.tar.gz"
+          curl -fsSLo "$file" "https://github.com/open-policy-agent/gatekeeper/releases/download/${VERSION}/${file}"
+          echo "${SHA256}  ${file}" | sha256sum --check
+          tar -xzf "$file" gator
+          sudo install gator /usr/local/bin/gator
+      - run: gator verify platform/policies/gatekeeper/tests
 
   prometheus-rules:
     name: promtool rule tests

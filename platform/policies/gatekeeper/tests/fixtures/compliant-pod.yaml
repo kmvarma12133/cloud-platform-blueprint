@@ -1,0 +1,14 @@
+# Satisfies every platform policy.
+apiVersion: v1
+kind: Pod
+metadata:
+  name: compliant
+  namespace: orders-dev
+  labels: {app.kubernetes.io/name: orders-api, owner: team-orders}
+spec:
+  securityContext: {runAsNonRoot: true, runAsUser: 10001}
+  containers:
+    - name: web
+      image: "ghcr.io/kmvarma12133/orders-api@sha256:0000000000000000000000000000000000000000000000000000000000000000"
+      securityContext: {runAsNonRoot: true, allowPrivilegeEscalation: false}
+      resources: {requests: {cpu: 50m, memory: 64Mi}, limits: {cpu: 200m, memory: 128Mi}}

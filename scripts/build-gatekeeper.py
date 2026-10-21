@@ -84,16 +84,30 @@ def render(path: Path) -> str:
     out += indent(schema_yaml, 8)
     out += "  targets:\n"
     out += "    - target: admission.k8s.gatekeeper.sh\n"
-    out += "      rego: |\n"
-    out += indent(source, 8)
+    # The policies are Rego v1. Gatekeeper parses the legacy `rego` field as v0
+    # and only allows data.lib/data.inventory imports there, so it rejects
+    # `import rego.v1`; the `code` source with version v1 is the supported form.
+    out += "      code:\n"
+    out += "        - engine: Rego\n"
+    out += "          source:\n"
+    out += '            version: "v1"\n'
+    out += "            rego: |\n"
+    out += indent(strip_v1_import(source), 14)
     if "import data.lib." in source:
-        out += "      libs:\n"
+        out += "            libs:\n"
         for lib in sorted(LIB_DIR.glob("*.rego")):
             if lib.name.endswith("_test.rego"):
                 continue
-            out += "        - |\n"
-            out += indent(lib.read_text(encoding="utf-8"), 10)
+            out += "              - |\n"
+            out += indent(strip_v1_import(lib.read_text(encoding="utf-8")), 16)
     return out
+
+
+def strip_v1_import(source: str) -> str:
+    """Drop `import rego.v1`: opa test needs it, v1 mode makes it redundant."""
+    return "".join(
+        line for line in source.splitlines(keepends=True) if line.strip() != "import rego.v1"
+    )
 
 
 def build() -> dict[Path, str]:

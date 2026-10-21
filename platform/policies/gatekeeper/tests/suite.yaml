@@ -1,0 +1,68 @@
+# Checks the generated ConstraintTemplates with Gatekeeper's own engine (gator),
+# which opa test cannot: Gatekeeper restricts imports and Rego versions.
+#   gator verify platform/policies/gatekeeper/tests
+apiVersion: test.gatekeeper.sh/v1alpha1
+kind: Suite
+metadata:
+  name: platform-policies
+tests:
+  - name: allowed-registries
+    template: ../templates/k8sallowedregistries.yaml
+    constraint: ../constraints/base/allowed-registries.yaml
+    cases:
+      - name: compliant-pod-is-admitted
+        object: fixtures/compliant-pod.yaml
+        assertions:
+          - violations: "no"
+      - name: noncompliant-pod-is-denied
+        object: fixtures/noncompliant-pod.yaml
+        assertions:
+          - violations: "yes"
+  - name: disallow-latest-tag
+    template: ../templates/k8sdisallowlatesttag.yaml
+    constraint: ../constraints/base/disallow-latest-tag.yaml
+    cases:
+      - name: compliant-pod-is-admitted
+        object: fixtures/compliant-pod.yaml
+        assertions:
+          - violations: "no"
+      - name: noncompliant-pod-is-denied
+        object: fixtures/noncompliant-pod.yaml
+        assertions:
+          - violations: "yes"
+  - name: require-ownership-labels
+    template: ../templates/k8srequiredlabels.yaml
+    constraint: ../constraints/base/require-ownership-labels.yaml
+    cases:
+      - name: compliant-pod-is-admitted
+        object: fixtures/compliant-pod.yaml
+        assertions:
+          - violations: "no"
+      - name: noncompliant-pod-is-denied
+        object: fixtures/noncompliant-pod.yaml
+        assertions:
+          - violations: "yes"
+  - name: require-limits
+    template: ../templates/k8srequiredlimits.yaml
+    constraint: ../constraints/base/require-limits.yaml
+    cases:
+      - name: compliant-pod-is-admitted
+        object: fixtures/compliant-pod.yaml
+        assertions:
+          - violations: "no"
+      - name: noncompliant-pod-is-denied
+        object: fixtures/noncompliant-pod.yaml
+        assertions:
+          - violations: "yes"
+  - name: require-non-root
+    template: ../templates/k8srequirenonroot.yaml
+    constraint: ../constraints/base/require-non-root.yaml
+    cases:
+      - name: compliant-pod-is-admitted
+        object: fixtures/compliant-pod.yaml
+        assertions:
+          - violations: "no"
+      - name: noncompliant-pod-is-denied
+        object: fixtures/noncompliant-pod.yaml
+        assertions:
+          - violations: "yes"

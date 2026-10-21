@@ -1,0 +1,7 @@
+# Breaks every platform policy: Docker Hub, :latest, no labels, no limits, may run as root.
+apiVersion: v1
+kind: Pod
+metadata: {name: noncompliant, namespace: orders-dev}
+spec:
+  containers:
+    - {name: web, image: "docker.io/library/nginx:latest"}

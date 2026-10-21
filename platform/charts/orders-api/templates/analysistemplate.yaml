@@ -11,7 +11,9 @@ spec:
     - name: service
     - name: canary-hash
   # Both metrics read only the canary's pods: the ServiceMonitor copies the
-  # rollouts-pod-template-hash pod label onto every scraped series.
+  # rollouts-pod-template-hash pod label onto every scraped series. Probe routes
+  # are excluded, as in the SLO rules: kubelet probes always succeed and are
+  # fast, so counting them can make a failing canary look healthy.
   #
   # No traffic is not a failure. If the canary has never been called there are
   # no series ("or on() vector(...)" supplies a passing value); if it was called
@@ -28,9 +30,9 @@ spec:
         prometheus:
           address: {{ .Values.prometheus.address }}
           query: |
-            sum(rate(http_requests_total{namespace="{{`{{args.namespace}}`}}", service="{{`{{args.service}}`}}", rollouts_pod_template_hash="{{`{{args.canary-hash}}`}}", status!~"5.."}[1m]))
+            sum(rate(http_requests_total{namespace="{{`{{args.namespace}}`}}", service="{{`{{args.service}}`}}", rollouts_pod_template_hash="{{`{{args.canary-hash}}`}}", route!~"/healthz|/readyz", status!~"5.."}[1m]))
             /
-            sum(rate(http_requests_total{namespace="{{`{{args.namespace}}`}}", service="{{`{{args.service}}`}}", rollouts_pod_template_hash="{{`{{args.canary-hash}}`}}"}[1m]))
+            sum(rate(http_requests_total{namespace="{{`{{args.namespace}}`}}", service="{{`{{args.service}}`}}", rollouts_pod_template_hash="{{`{{args.canary-hash}}`}}", route!~"/healthz|/readyz"}[1m]))
             or on() vector(1)
     - name: latency-p95
       interval: {{ $a.interval }}
@@ -42,5 +44,5 @@ spec:
           address: {{ .Values.prometheus.address }}
           query: |
             histogram_quantile(0.95,
-              sum by (le) (rate(http_request_duration_seconds_bucket{namespace="{{`{{args.namespace}}`}}", service="{{`{{args.service}}`}}", rollouts_pod_template_hash="{{`{{args.canary-hash}}`}}"}[1m])))
+              sum by (le) (rate(http_request_duration_seconds_bucket{namespace="{{`{{args.namespace}}`}}", service="{{`{{args.service}}`}}", rollouts_pod_template_hash="{{`{{args.canary-hash}}`}}", route!~"/healthz|/readyz"}[1m])))
             or on() vector(0)

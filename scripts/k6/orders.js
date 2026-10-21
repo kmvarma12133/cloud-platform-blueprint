@@ -17,6 +17,11 @@ export const options = {
       maxVUs: 100,
     },
   },
+  // A new connection per request. kube-proxy balances connections, not
+  // requests, and the canary is weighted by replica count: reused keep-alive
+  // connections stay on the pods that existed when k6 started, so a canary
+  // created later would receive no traffic and its analysis nothing to judge.
+  noConnectionReuse: true,
   // No thresholds: the rollback demo expects errors, and judging them is the
   // canary analysis's job, not the load generator's.
 };

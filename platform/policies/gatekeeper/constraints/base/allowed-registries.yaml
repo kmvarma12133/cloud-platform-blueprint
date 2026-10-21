@@ -42,4 +42,4 @@ spec:
       # Any account's private ECR, any ACR, and this organisation's GHCR namespace.
       - '^[0-9]{12}\.dkr\.ecr\.[a-z0-9-]+\.amazonaws\.com/'
       - '^[a-z0-9]+\.azurecr\.io/'
-      - '^ghcr\.io/OWNER/'
+      - '^ghcr\.io/kmvarma12133/'

@@ -3,7 +3,7 @@
 ## Reporting a vulnerability
 
 Please report security issues privately through GitHub's
-[private vulnerability reporting](https://github.com/OWNER/cloud-platform-blueprint/security/advisories/new),
+[private vulnerability reporting](https://github.com/Kmvarma12133/cloud-platform-blueprint/security/advisories/new),
 not in a public issue or pull request. Include what you found, how to
 reproduce it, and the affected path or commit.
 

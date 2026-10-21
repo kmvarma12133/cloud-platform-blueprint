@@ -1,7 +1,7 @@
 # Defaults shared by every environment. values-<env>.yaml overrides them.
 
 image:
-  repository: ghcr.io/OWNER/orders-api
+  repository: ghcr.io/kmvarma12133/orders-api
   # Set per environment. CI writes the commit SHA into values-dev.yaml and the
   # promote-prod workflow writes it into values-prod.yaml.
   tag: ""

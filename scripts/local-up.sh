@@ -16,7 +16,7 @@ ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 # shellcheck source=scripts/lib.sh
 source "$ROOT/scripts/lib.sh"
 
-GITHUB_REPO_URL="https://github.com/OWNER/cloud-platform-blueprint.git"
+GITHUB_REPO_URL="https://github.com/Kmvarma12133/cloud-platform-blueprint.git"
 REPO_URL="${REPO_URL:-$GITHUB_REPO_URL}"
 IMAGE="localhost/orders-api" # matches values-local.yaml
 

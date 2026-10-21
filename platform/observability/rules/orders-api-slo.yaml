@@ -116,7 +116,7 @@ spec:
           annotations:
             summary: "orders-api ({{ $labels.namespace }}) is burning its availability budget at more than 14.4x"
             description: "Error ratio over 1h is {{ $value | humanizePercentage }}. At this rate the 30-day budget is gone in about two days."
-            runbook_url: https://github.com/OWNER/cloud-platform-blueprint/blob/main/docs/runbooks/high-error-rate.md
+            runbook_url: https://github.com/Kmvarma12133/cloud-platform-blueprint/blob/main/docs/runbooks/high-error-rate.md
             dashboard: /d/orders-api-slo/orders-api-slo?var-namespace={{ $labels.namespace }}
         - alert: OrdersApiErrorBudgetBurnSlow
           expr: |
@@ -131,7 +131,7 @@ spec:
           annotations:
             summary: "orders-api ({{ $labels.namespace }}) is burning its availability budget at more than 6x"
             description: "Error ratio over 6h is {{ $value | humanizePercentage }}. At this rate the 30-day budget is gone in about five days."
-            runbook_url: https://github.com/OWNER/cloud-platform-blueprint/blob/main/docs/runbooks/high-error-rate.md
+            runbook_url: https://github.com/Kmvarma12133/cloud-platform-blueprint/blob/main/docs/runbooks/high-error-rate.md
             dashboard: /d/orders-api-slo/orders-api-slo?var-namespace={{ $labels.namespace }}
         - alert: OrdersApiLatencyBudgetBurnFast
           expr: |
@@ -146,7 +146,7 @@ spec:
           annotations:
             summary: "orders-api ({{ $labels.namespace }}) latency SLO burning at more than 14.4x"
             description: "{{ $value | humanizePercentage }} of requests took longer than 300ms over the last hour (budget: 1%)."
-            runbook_url: https://github.com/OWNER/cloud-platform-blueprint/blob/main/docs/runbooks/high-error-rate.md
+            runbook_url: https://github.com/Kmvarma12133/cloud-platform-blueprint/blob/main/docs/runbooks/high-error-rate.md
             dashboard: /d/orders-api-slo/orders-api-slo?var-namespace={{ $labels.namespace }}
         - alert: OrdersApiLatencyBudgetBurnSlow
           expr: |
@@ -161,5 +161,5 @@ spec:
           annotations:
             summary: "orders-api ({{ $labels.namespace }}) latency SLO burning at more than 6x"
             description: "{{ $value | humanizePercentage }} of requests took longer than 300ms over the last 6 hours (budget: 1%)."
-            runbook_url: https://github.com/OWNER/cloud-platform-blueprint/blob/main/docs/runbooks/high-error-rate.md
+            runbook_url: https://github.com/Kmvarma12133/cloud-platform-blueprint/blob/main/docs/runbooks/high-error-rate.md
             dashboard: /d/orders-api-slo/orders-api-slo?var-namespace={{ $labels.namespace }}

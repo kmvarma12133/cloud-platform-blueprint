@@ -16,7 +16,7 @@ FROM python:3.12.15-slim-trixie@sha256:a6e34c598f2467ed0e9a8d349809fcd8b5c603269
 ARG VERSION=0.0.0-dev
 LABEL org.opencontainers.image.title="orders-api" \
       org.opencontainers.image.version="${VERSION}" \
-      org.opencontainers.image.source="https://github.com/OWNER/cloud-platform-blueprint"
+      org.opencontainers.image.source="https://github.com/Kmvarma12133/cloud-platform-blueprint"
 ENV PATH="/opt/venv/bin:$PATH" \
     PYTHONDONTWRITEBYTECODE=1 \
     PYTHONUNBUFFERED=1 \

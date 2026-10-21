@@ -16,7 +16,7 @@ metadata:
 spec:
   project: default
   source:
-    repoURL: https://github.com/OWNER/cloud-platform-blueprint.git
+    repoURL: https://github.com/Kmvarma12133/cloud-platform-blueprint.git
     targetRevision: main
     path: platform/gitops/clusters/eks-dev
   destination:

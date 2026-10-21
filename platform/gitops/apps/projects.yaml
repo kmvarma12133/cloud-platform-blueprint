@@ -14,7 +14,7 @@ metadata:
 spec:
   description: Cluster add-ons managed by the platform team
   sourceRepos:
-    - https://github.com/OWNER/cloud-platform-blueprint.git
+    - https://github.com/Kmvarma12133/cloud-platform-blueprint.git
     - https://argoproj.github.io/argo-helm
     - https://prometheus-community.github.io/helm-charts
     - https://open-telemetry.github.io/opentelemetry-helm-charts
@@ -43,7 +43,7 @@ metadata:
 spec:
   description: Product workloads
   sourceRepos:
-    - https://github.com/OWNER/cloud-platform-blueprint.git
+    - https://github.com/Kmvarma12133/cloud-platform-blueprint.git
   destinations:
     - server: https://kubernetes.default.svc
       namespace: orders-*

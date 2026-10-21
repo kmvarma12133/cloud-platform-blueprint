@@ -17,7 +17,7 @@ spec:
         releaseName: opentelemetry-collector
         valueFiles:
           - $values/platform/observability/values/opentelemetry-collector.yaml
-    - repoURL: https://github.com/OWNER/cloud-platform-blueprint.git
+    - repoURL: https://github.com/Kmvarma12133/cloud-platform-blueprint.git
       targetRevision: main
       ref: values
   destination:

@@ -35,7 +35,7 @@ tests:
             exp_annotations:
               summary: "orders-api (orders-dev) is burning its availability budget at more than 14.4x"
               description: "Error ratio over 1h is 2%. At this rate the 30-day budget is gone in about two days."
-              runbook_url: https://github.com/OWNER/cloud-platform-blueprint/blob/main/docs/runbooks/high-error-rate.md
+              runbook_url: https://github.com/Kmvarma12133/cloud-platform-blueprint/blob/main/docs/runbooks/high-error-rate.md
               dashboard: /d/orders-api-slo/orders-api-slo?var-namespace=orders-dev
       # A fast burn is also a slow burn: with only 70m of data the 6h window is
       # computed over what exists, so the ticket fires too. Alertmanager's
@@ -52,7 +52,7 @@ tests:
             exp_annotations:
               summary: "orders-api (orders-dev) is burning its availability budget at more than 6x"
               description: "Error ratio over 6h is 2%. At this rate the 30-day budget is gone in about five days."
-              runbook_url: https://github.com/OWNER/cloud-platform-blueprint/blob/main/docs/runbooks/high-error-rate.md
+              runbook_url: https://github.com/Kmvarma12133/cloud-platform-blueprint/blob/main/docs/runbooks/high-error-rate.md
               dashboard: /d/orders-api-slo/orders-api-slo?var-namespace=orders-dev
 
   # 0.05% errors = 0.5x burn: well inside budget, nothing fires.
@@ -89,7 +89,7 @@ tests:
             exp_annotations:
               summary: "orders-api (orders-prod) is burning its availability budget at more than 6x"
               description: "Error ratio over 6h is 0.8%. At this rate the 30-day budget is gone in about five days."
-              runbook_url: https://github.com/OWNER/cloud-platform-blueprint/blob/main/docs/runbooks/high-error-rate.md
+              runbook_url: https://github.com/Kmvarma12133/cloud-platform-blueprint/blob/main/docs/runbooks/high-error-rate.md
               dashboard: /d/orders-api-slo/orders-api-slo?var-namespace=orders-prod
       - eval_time: 7h
         alertname: OrdersApiErrorBudgetBurnFast
@@ -116,5 +116,5 @@ tests:
             exp_annotations:
               summary: "orders-api (orders-dev) latency SLO burning at more than 14.4x"
               description: "20% of requests took longer than 300ms over the last hour (budget: 1%)."
-              runbook_url: https://github.com/OWNER/cloud-platform-blueprint/blob/main/docs/runbooks/high-error-rate.md
+              runbook_url: https://github.com/Kmvarma12133/cloud-platform-blueprint/blob/main/docs/runbooks/high-error-rate.md
               dashboard: /d/orders-api-slo/orders-api-slo?var-namespace=orders-dev

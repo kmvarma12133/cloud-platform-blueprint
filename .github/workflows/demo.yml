@@ -59,6 +59,7 @@ jobs:
         run: |
           kubectl -n argocd get applications || true
           kubectl -n orders-dev describe rollout orders-api || true
+          kubectl -n load-test describe pods -l job-name=k6 || true
       # Every measurement of every analysis, to see which step caught the canary.
       - name: Save the AnalysisRuns
         if: always()

@@ -22,7 +22,8 @@ phase=$(k -n "$NS" get rollout orders-api -o jsonpath='{.status.phase}')
 stable_image=$(current_image "$NS")
 
 log "Starting load so the analysis has traffic to measure"
-DURATION=10m "$ROOT/scripts/load-test.sh"
+DURATION=15m "$ROOT/scripts/load-test.sh"
+wait_for_load "$NS"
 
 log "Deploying local-broken over ${stable_image##*:}"
 set_image_tag "$APP" local-broken

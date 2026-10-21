@@ -37,6 +37,28 @@ current_image() {
   k -n "$1" get rollout orders-api -o jsonpath='{.spec.template.spec.containers[0].image}'
 }
 
+# Instant query against the in-cluster Prometheus; prints the first value.
+prom_query() {
+  k -n monitoring exec statefulset/prometheus-kube-prometheus-stack-prometheus -c prometheus --     promtool query instant http://localhost:9090 "$1" 2>/dev/null | awk '/=>/ {print $3; exit}'
+}
+
+# Block until load-test traffic reaches orders-api and Prometheus has scraped
+# it. Otherwise the analysis can run before any real request, and no traffic
+# passes by design (an idle environment must still be able to promote).
+wait_for_load() {
+  local ns=$1 timeout=${2:-300} start=$SECONDS rate
+  local query="sum(rate(http_requests_total{namespace=\"$ns\", service=\"orders-api\", route!~\"/healthz|/readyz\"}[1m]))"
+  until rate=$(prom_query "$query") && awk -v r="${rate:-0}" 'BEGIN { exit !(r > 5) }'; do
+    if (( SECONDS - start >= timeout )); then
+      k -n load-test get pods -l job-name=k6 -o wide >&2 || true
+      k -n load-test get events --sort-by=.lastTimestamp 2>/dev/null | tail -5 >&2 || true
+      die "No load reached orders-api within ${timeout}s, so the analysis would have nothing to judge"
+    fi
+    sleep 5
+  done
+  log "Load is flowing: $(printf '%.0f' "$rate") req/s reaching orders-api"
+}
+
 # Block until Argo CD has synced the new tag into the Rollout. Watching before
 # then would read the previous revision, which is still Healthy at its last
 # step, and mistake it for the new version being promoted.

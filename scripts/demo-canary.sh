@@ -21,7 +21,8 @@ case "$current" in
 esac
 
 log "Starting load so the analysis has traffic to measure"
-DURATION=15m "$ROOT/scripts/load-test.sh"
+DURATION=20m "$ROOT/scripts/load-test.sh"
+wait_for_load "$NS"
 
 log "Deploying $next (currently ${current##*:})"
 set_image_tag "$APP" "$next"

@@ -40,14 +40,14 @@ this repo uses Pod Identity and when it uses IRSA.
 | Name | Version |
 | ---- | ------- |
 | terraform | >= 1.6.0 |
-| aws | ~> 5.70 |
+| aws | ~> 6.69 |
 | tls | ~> 4.0 |
 
 ## Providers
 
 | Name | Version |
 | ---- | ------- |
-| aws | ~> 5.70 |
+| aws | ~> 6.69 |
 | tls | ~> 4.0 |
 
 ## Resources

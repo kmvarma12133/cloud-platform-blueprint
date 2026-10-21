@@ -40,7 +40,7 @@ case $result in
     k -n "$NS" get analysisrun "$run" -o jsonpath='{range .status.metricResults[*]}{"  "}{.name}{": "}{.phase}{"  measurements="}{range .measurements[*]}{.value}{" "}{end}{"\n"}{end}'
     echo
     log "Pods now (the canary has been scaled away):"
-    k -n "$NS" get pods -l app.kubernetes.io/name=orders-api -L role \
+    k -n "$NS" get pods -l app.kubernetes.io/name=orders-api \
       -o custom-columns=POD:.metadata.name,ROLE:.metadata.labels.role,IMAGE:.spec.containers[0].image,READY:.status.containerStatuses[0].ready
     echo
     log "Users kept being served by the stable version. Restore a clean state with: make demo-reset"

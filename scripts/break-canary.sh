@@ -26,7 +26,7 @@ DURATION=10m "$ROOT/scripts/load-test.sh"
 
 log "Deploying local-broken over ${stable_image##*:}"
 set_image_tag "$APP" local-broken
-sleep 5
+wait_for_image "$NS" local-broken
 
 set +e
 watch_rollout "$NS" 900

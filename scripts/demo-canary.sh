@@ -25,7 +25,7 @@ DURATION=15m "$ROOT/scripts/load-test.sh"
 
 log "Deploying $next (currently ${current##*:})"
 set_image_tag "$APP" "$next"
-sleep 5
+wait_for_image "$NS" "$next"
 
 if watch_rollout "$NS" 900; then
   log "Promoted: every pod now runs $(current_image "$NS" | sed 's/.*://')"

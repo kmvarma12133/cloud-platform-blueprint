@@ -37,6 +37,17 @@ current_image() {
   k -n "$1" get rollout orders-api -o jsonpath='{.spec.template.spec.containers[0].image}'
 }
 
+# Block until Argo CD has synced the new tag into the Rollout. Watching before
+# then would read the previous revision, which is still Healthy at its last
+# step, and mistake it for the new version being promoted.
+wait_for_image() {
+  local ns=$1 tag=$2 timeout=${3:-300} start=$SECONDS
+  until [[ "$(current_image "$ns")" == *":$tag" ]]; do
+    (( SECONDS - start < timeout )) || die "Argo CD did not sync $tag into the Rollout within ${timeout}s"
+    sleep 3
+  done
+}
+
 # One status line per poll until the rollout finishes, aborts or times out.
 # Returns 0 when the new version is fully promoted, 1 when the rollout aborts.
 watch_rollout() {

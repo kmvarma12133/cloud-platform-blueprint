@@ -22,6 +22,11 @@ except the cloud apply runs locally: `make local-up` brings the whole GitOps
 flow up on kind, and `make demo-rollback` shows a bad release being stopped by
 the platform.
 
+![make demo-rollback: a release that fails half its requests is aborted at the 30% canary step](docs/img/demo-rollback.gif)
+
+*`make demo-rollback` on kind, recorded by the [demo workflow](.github/workflows/demo.yml)
+on a GitHub runner (sped up 2×). See [Demo walkthrough](#demo-walkthrough).*
+
 ## Architecture
 
 ```mermaid
@@ -126,7 +131,43 @@ promtool 3.15 and Python 3.12.
 
 ## Demo walkthrough
 
-DEMO_OUTPUT_PLACEHOLDER
+`make demo-rollback` starts steady load, waits until it reaches the service,
+then deploys an image that fails 50% of API calls while still passing its
+health probes. Kubernetes alone would roll it out to every pod. This is the
+output from the recorded run above, with repeated status lines trimmed:
+
+```text
+==> k6: 40 req/s against http://orders-api.orders-dev.svc for 15m (job load-test/k6)
+==> Load is flowing: 16 req/s reaching orders-api
+==> Deploying local-broken over local-v1
+12:09:50  phase=Progressing step=0/7 weight=10%  pods stable=2 canary=1  analysis=-
+12:10:00  phase=Paused      step=1/7 weight=10%  pods stable=2 canary=1  analysis=-
+   ...    (2-minute pause at 10%; KEDA scales stable up with the load)
+12:12:00  phase=Progressing step=3/7 weight=30%  pods stable=4 canary=2  analysis=orders-api-d44589c95-2-3=Running
+12:12:22  phase=Progressing step=3/7 weight=30%  pods stable=4 canary=2  analysis=orders-api-d44589c95-2-3=Running
+12:12:33  phase=Degraded    step=0/7 weight=10%  pods stable=5 canary=0  analysis=orders-api-d44589c95-2-3=Failed
+==> Rollout ABORTED by the canary analysis. What it measured:
+  success-rate: Failed  measurements=[0.5057636887608069] [0.5028982073117672]
+  latency-p95: Successful  measurements=[0.004750000000000001] [0.004749999999999999]
+
+==> Pods now (the canary has been scaled away):
+POD                           ROLE     IMAGE                           READY
+orders-api-6f84f455ff-4vx4j   stable   localhost/orders-api:local-v1   true
+orders-api-6f84f455ff-fpxtx   stable   localhost/orders-api:local-v1   true
+...
+```
+
+The canary measured about 50% success on its own pods against a 99% target.
+Two failed measurements exceed `failureLimit: 1`, so Argo Rollouts aborted about
+30 seconds into the first analysis and never moved to 60%. Latency stayed healthy:
+the broken image fails fast, which is why the analysis checks errors and
+latency separately. The stable version served throughout.
+
+Getting this right took three fixes, recorded in
+[ADR 0003](docs/adr/0003-argo-rollouts-canary-with-analysis.md): the analysis
+now ignores probe routes, the demo waits for real traffic, and the load test
+opens a new connection per request, because kube-proxy balances connections
+and reused keep-alive connections never reached the canary.
 
 ## Design decisions
 

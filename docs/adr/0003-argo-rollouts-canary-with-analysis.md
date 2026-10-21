@@ -34,7 +34,9 @@ achieved by scaling the canary and stable ReplicaSets behind one Service.
 
 The `AnalysisTemplate` runs two Prometheus queries per measurement: success
 rate (non-5xx / all) at least 99%, and p95 latency under 300ms. Both read only
-the canary's pods. The ServiceMonitor copies the `rollouts-pod-template-hash`
+the canary's pods and, like the SLO rules, leave out the `/healthz` and
+`/readyz` probe routes, which always succeed quickly and would otherwise make a
+failing canary look healthy. The ServiceMonitor copies the `rollouts-pod-template-hash`
 pod label onto every series, and the analysis passes the new ReplicaSet's hash
 as an argument. With four measurements 30 seconds apart and `failureLimit: 1`,
 a broken canary is aborted within about a minute of reaching an analysis step.
@@ -65,7 +67,15 @@ Bad:
 - **No traffic counts as a pass.** If the canary receives no requests, the
   query returns no data or 0/0, and both are treated as passing. Otherwise an
   idle environment could never promote. The rollback demo always runs under
-  load for this reason.
+  load for this reason, and waits until that load reaches the service.
+- **Weights assume clients open new connections.** kube-proxy balances
+  connections, not requests. A client that holds keep-alive connections (or
+  HTTP/2 and gRPC streams) stays on the pods that existed when it connected, so
+  a canary can receive little or none of its traffic, and then passes by the
+  rule above. A recorded demo run promoted a version failing half its requests
+  to 100% this way, because k6 reused its connections; the load test now opens
+  one per request. A traffic router (option 3) balances requests and removes
+  this.
 - **Tools that expect a Deployment need adapting.** The KEDA `ScaledObject`
   targets the Rollout, and `spec.replicas` is omitted so Argo CD and the HPA
   don't fight.

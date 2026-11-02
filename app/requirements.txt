@@ -6,5 +6,5 @@ opentelemetry-exporter-otlp-proto-http==1.45.1
 opentelemetry-instrumentation-fastapi==0.66b1
 # Transitive, pinned explicitly because both have had security fixes that the
 # image scan gates on; Dependabot keeps them current.
-starlette==1.9.0
+starlette==1.10.0
 protobuf==7.36.2

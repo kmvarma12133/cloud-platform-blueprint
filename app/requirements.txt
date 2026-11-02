@@ -1,9 +1,9 @@
 fastapi==0.154.0
 uvicorn[standard]==0.54.0
 prometheus-client==0.26.0
-opentelemetry-sdk==1.45.1
-opentelemetry-exporter-otlp-proto-http==1.45.1
-opentelemetry-instrumentation-fastapi==0.66b1
+opentelemetry-sdk==1.45.2
+opentelemetry-exporter-otlp-proto-http==1.45.2
+opentelemetry-instrumentation-fastapi==0.66b2
 # Transitive, pinned explicitly because both have had security fixes that the
 # image scan gates on; Dependabot keeps them current.
 starlette==1.9.0
